@@ -69,20 +69,20 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 const money = (value: number) => `Bs ${value.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`
 const nextCode = (prefix: string, count: number) => `${prefix}-${String(count).padStart(5, '0')}`
 
-type Payment = { id: string; receipt: string; person: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado' }
-type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado' }
+type Payment = { id: string; receipt: string; person: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
+type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
 type Person = { id: string; name: string; phone: string; notes: string }
 
 const initialPayments: Payment[] = [
-  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado' },
-  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado' },
-  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado' },
-  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado' },
+  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza' },
+  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet' },
+  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet' },
+  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza' },
 ]
 
 const initialExpenses: Expense[] = [
-  { id: 'e1', voucher: 'EGR-00032', concept: 'Pago de electricidad', recipient: 'ENDE', category: 'Servicios básicos', date: '2024-06-09', amount: 145, cash: 145, qr: 0, status: 'Aplicado' },
-  { id: 'e2', voucher: 'EGR-00031', concept: 'Materiales para campamento', recipient: 'Ferretería Central', category: 'Materiales y suministros', date: '2024-06-07', amount: 210, cash: 60, qr: 150, status: 'Aplicado' },
+  { id: 'e1', voucher: 'EGR-00032', concept: 'Pago de electricidad', recipient: 'ENDE', category: 'Servicios básicos', date: '2024-06-09', amount: 145, cash: 145, qr: 0, status: 'Aplicado', issuedBy: 'Ovet' },
+  { id: 'e2', voucher: 'EGR-00031', concept: 'Materiales para campamento', recipient: 'Ferretería Central', category: 'Materiales y suministros', date: '2024-06-07', amount: 210, cash: 60, qr: 150, status: 'Aplicado', issuedBy: 'Melitza' },
 ]
 
 const initialEventOptions = ['Campamento juvenil', 'Seminario de liderazgo', 'Retiro de damas 2024']
@@ -99,6 +99,7 @@ function App() {
   const [eventOptions, setEventOptions] = usePersistedState<string[]>('sec-car-events', initialEventOptions)
   const [categoryOptions, setCategoryOptions] = usePersistedState<string[]>('sec-car-categories', initialCategoryOptions)
   const [people, setPeople] = usePersistedState<Person[]>('sec-car-people', initialPeople)
+  const [theme, setTheme] = usePersistedState<'light' | 'dark'>('sec-car-theme', 'light')
 
   const [query, setQuery] = useState('')
   const [expenseQuery, setExpenseQuery] = useState('')
@@ -152,7 +153,7 @@ function App() {
     const qr = Number(incomeForm.qr) || 0
     if (!incomeForm.person.trim() || !incomeForm.concept.trim() || (!cash && !qr)) return
     const concept = incomeForm.concept.trim()
-    const next: Payment = { id: crypto.randomUUID(), receipt: nextCode('REC', 242 + payments.length), person: incomeForm.person.trim(), concept, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado' }
+    const next: Payment = { id: crypto.randomUUID(), receipt: nextCode('REC', 242 + payments.length), person: incomeForm.person.trim(), concept, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado', issuedBy: loggedUser! }
     setPayments([next, ...payments])
     if (!eventOptions.includes(concept)) setEventOptions([...eventOptions, concept])
     setSelectedReceipt(next); setShowIncomeModal(false); setShowReceipt(true)
@@ -164,7 +165,7 @@ function App() {
     const qr = Number(expenseForm.qr) || 0
     if (!expenseForm.recipient.trim() || !expenseForm.concept.trim() || (!cash && !qr)) return
     const category = expenseForm.category.trim() || 'Otros'
-    const next: Expense = { id: crypto.randomUUID(), voucher: nextCode('EGR', 33 + expenses.length), concept: expenseForm.concept.trim(), recipient: expenseForm.recipient.trim(), category, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado' }
+    const next: Expense = { id: crypto.randomUUID(), voucher: nextCode('EGR', 33 + expenses.length), concept: expenseForm.concept.trim(), recipient: expenseForm.recipient.trim(), category, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado', issuedBy: loggedUser! }
     setExpenses([next, ...expenses])
     if (!categoryOptions.includes(category)) setCategoryOptions([...categoryOptions, category])
     setSelectedVoucher(next); setShowExpenseModal(false); setShowVoucher(true)
@@ -173,6 +174,7 @@ function App() {
 
   const toggleIncomeStatus = (id: string) => setPayments(payments.map((p) => p.id === id ? { ...p, status: p.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : p))
   const toggleExpenseStatus = (id: string) => setExpenses(expenses.map((e) => e.id === id ? { ...e, status: e.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : e))
+  const canManage = (owner?: Account['name']) => !owner || owner === loggedUser
   const addEventOption = () => { const name = newEventName.trim(); if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name]); setNewEventName('') }
   const removeEventOption = (name: string) => setEventOptions(eventOptions.filter((option) => option !== name))
   const addPerson = () => {
@@ -185,7 +187,7 @@ function App() {
 
   if (!loggedUser) return <AccessScreen onLogin={setLoggedUser} />
 
-  return <div className="app-shell">
+  return <div className={`app-shell ${theme}`}>
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><img src="/logo-seccar.jpg" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Administración</span></div></div>
       <div className="side-label">GESTIÓN</div>
@@ -198,7 +200,7 @@ function App() {
       </div>
     </aside>
     <main className="main-content">
-      <header className="topbar"><div><span className="eyebrow">SEMINARIO DE EDUCACIÓN CRISTIANA</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div><div className="top-actions"><button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button><div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div></div></header>
+      <header className="topbar"><div><span className="eyebrow">SEMINARIO DE EDUCACIÓN CRISTIANA</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div><div className="top-actions"><button className="icon-button" aria-label="Cambiar tema" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☀' : '☾'}</button><button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button><div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div></div></header>
 
       {activePage === 'Resumen' && <>
         <section className="hero-row"><div><h2>Buenos días, {loggedUser} <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div><div className="hero-actions"><button className="outline-button" onClick={() => setShowExpenseModal(true)}><span>−</span> Nuevo egreso</button><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div></section>
@@ -232,15 +234,16 @@ function App() {
       {activePage === 'Ingresos' && <section className="panel transactions">
         <div className="panel-head"><div><h3>Ingresos</h3><p>Todos los recibos emitidos</p></div><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div>
         <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, concepto o recibo..." /></div></div>
-        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>PERSONA</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th><th></th></tr></thead><tbody>
+        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>PERSONA</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
           {filteredPayments.map((payment) => <tr key={payment.id}>
             <td><button className="receipt-link" onClick={() => { setSelectedReceipt(payment); setShowReceipt(true) }}>{payment.receipt}</button></td>
             <td className="person-cell"><span className="tiny-avatar">{payment.person[0]}</span>{payment.person}</td>
             <td>{payment.concept}</td>
             <td>{formatDate(payment.date)}</td>
             <td>{money(payment.amount)}<span className="method">Efectivo {money(payment.cash)} · QR {money(payment.qr)}</span></td>
+            <td>{payment.issuedBy || '—'}</td>
             <td><span className={payment.status === 'Aplicado' ? 'status' : 'status void'}>{payment.status}</span></td>
-            <td><button className="status-toggle" onClick={() => toggleIncomeStatus(payment.id)}>{payment.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button></td>
+            <td>{canManage(payment.issuedBy) ? <button className="status-toggle" onClick={() => toggleIncomeStatus(payment.id)}>{payment.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {payment.issuedBy}</span>}</td>
           </tr>)}
         </tbody></table></div>
       </section>}
@@ -248,7 +251,7 @@ function App() {
       {activePage === 'Egresos' && <section className="panel transactions">
         <div className="panel-head"><div><h3>Egresos</h3><p>Todos los pagos y gastos registrados</p></div><button className="primary-button" onClick={() => setShowExpenseModal(true)}><span>＋</span> Nuevo egreso</button></div>
         <div className="filters"><div className="search"><span>⌕</span><input value={expenseQuery} onChange={(event) => setExpenseQuery(event.target.value)} placeholder="Buscar por destinatario, categoría o comprobante..." /></div></div>
-        <div className="table-wrap"><table><thead><tr><th>COMPROBANTE</th><th>DESTINATARIO</th><th>CONCEPTO</th><th>CATEGORÍA</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th><th></th></tr></thead><tbody>
+        <div className="table-wrap"><table><thead><tr><th>COMPROBANTE</th><th>DESTINATARIO</th><th>CONCEPTO</th><th>CATEGORÍA</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
           {filteredExpenses.map((expense) => <tr key={expense.id}>
             <td><button className="receipt-link" onClick={() => { setSelectedVoucher(expense); setShowVoucher(true) }}>{expense.voucher}</button></td>
             <td className="person-cell"><span className="tiny-avatar">{expense.recipient[0]}</span>{expense.recipient}</td>
@@ -256,8 +259,9 @@ function App() {
             <td>{expense.category}</td>
             <td>{formatDate(expense.date)}</td>
             <td>{money(expense.amount)}<span className="method">Efectivo {money(expense.cash)} · QR {money(expense.qr)}</span></td>
+            <td>{expense.issuedBy || '—'}</td>
             <td><span className={expense.status === 'Aplicado' ? 'status' : 'status void'}>{expense.status}</span></td>
-            <td><button className="status-toggle" onClick={() => toggleExpenseStatus(expense.id)}>{expense.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button></td>
+            <td>{canManage(expense.issuedBy) ? <button className="status-toggle" onClick={() => toggleExpenseStatus(expense.id)}>{expense.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {expense.issuedBy}</span>}</td>
           </tr>)}
         </tbody></table></div>
       </section>}

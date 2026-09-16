@@ -20,4 +20,25 @@
 .inline-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 18px 22px; border-bottom: 1px solid #eef1f0; }.inline-form label { color: #63736f; font-size: 11px; font-weight: 700; }.inline-form input { display: block; margin-top: 6px; border: 1px solid #dfe6e3; border-radius: 4px; padding: 9px 10px; color: #354845; font-size: 11px; min-width: 170px; }.inline-form .primary-button { align-self: center; }
 .chip-list { display: flex; flex-wrap: wrap; gap: 10px; padding: 18px 22px; }.chip { display: flex; align-items: center; gap: 10px; background: #f0f7f0; border: 1px solid #d9ecdd; border-radius: 20px; padding: 8px 10px 8px 16px; font-size: 11px; color: #1f6b3a; }.chip strong { display: block; color: #173d2a; }.chip small { display: block; color: #6f8f7a; font-size: 9px; margin-top: 2px; }.chip button { border: 0; background: #ffffffb0; color: #b34c3a; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; flex-shrink: 0; }
 .empty-hint { color: #9aa6a4; font-size: 11px; padding: 16px 22px; }
+.owner-lock { color: #a7b2af; font-size: 9px; font-style: italic; }
+.app-shell.dark { background: #0e1512; }
+.app-shell.dark .main-content { color: #cddad4; }
+.app-shell.dark .eyebrow { color: #7f938c; }
+.app-shell.dark .topbar h1, .app-shell.dark .panel h3, .app-shell.dark .hero-row h2, .app-shell.dark .modal h2 { color: #eaf3ee; }
+.app-shell.dark .hero-row p, .app-shell.dark .panel p, .app-shell.dark td, .app-shell.dark .modal label { color: #b9c7c1; }
+.app-shell.dark .panel, .app-shell.dark .stat-card, .app-shell.dark .modal, .app-shell.dark .receipt-modal { background: #16211d; border-color: #223530; }
+.app-shell.dark .date-pill, .app-shell.dark .filter-button, .app-shell.dark .search input, .app-shell.dark .inline-form input, .app-shell.dark .modal input, .app-shell.dark .modal select { background: #16211d; border-color: #223530; color: #cddad4; }
+.app-shell.dark th { background: #16211d; color: #7f938c; }
+.app-shell.dark td { border-color: #223026; }
+.app-shell.dark .accent-card { background: linear-gradient(135deg, #163a26, #2c2016); border-color: #2a4636; }
+.app-shell.dark .chip { background: #16281d; border-color: #274a34; color: #bfe8cf; }
+.app-shell.dark .chip strong { color: #eaf3ee; }
+.app-shell.dark .icon-button, .app-shell.dark .close-button, .app-shell.dark .more-button { color: #b9c7c1; }
+.app-shell.dark .status { background: #163a26; color: #7fd9a8; }
+.app-shell.dark .status.void { background: #3a1f1c; color: #f3a99a; }
+.app-shell.dark .event-item { border-color: #223026; }
+.app-shell.dark .payment-note { background: #1c2a24; color: #b9c7c1; }
+.app-shell.dark .stat-card > strong { color: #eaf3ee; }
+.app-shell.dark .stat-card small, .app-shell.dark small.dark, .app-shell.dark .method, .app-shell.dark .inline-form label { color: #9fb0aa; }
+.app-shell.dark .stat-card small b.dark { color: #eaf3ee; }
 
