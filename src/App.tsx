@@ -115,6 +115,7 @@ function App() {
   const [incomeForm, setIncomeForm] = useState({ person: '', concept: '', cash: '', qr: '' })
   const [expenseForm, setExpenseForm] = useState({ concept: '', recipient: '', category: '', cash: '', qr: '' })
   const [personForm, setPersonForm] = useState({ name: '', phone: '', notes: '' })
+  const [confirmClear, setConfirmClear] = useState('')
 
   const filteredPayments = useMemo(() => payments.filter((p) => `${p.person} ${p.concept} ${p.receipt}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
   const filteredExpenses = useMemo(() => expenses.filter((e) => `${e.recipient} ${e.concept} ${e.category} ${e.voucher}`.toLowerCase().includes(expenseQuery.toLowerCase())), [expenses, expenseQuery])
@@ -184,6 +185,24 @@ function App() {
   }
   const removePerson = (id: string) => setPeople(people.filter((person) => person.id !== id))
   const registerPayer = (name: string) => setPeople([...people, { id: crypto.randomUUID(), name, phone: '', notes: '' }])
+
+  const exportBackup = () => {
+    const header = ['Tipo', 'Codigo', 'Persona/Destinatario', 'Concepto', 'Categoria', 'Fecha', 'Monto', 'Efectivo', 'QR', 'Estado', 'Registrado por']
+    const rows = [
+      header,
+      ...payments.map((p) => ['Ingreso', p.receipt, p.person, p.concept, '', p.date, p.amount, p.cash, p.qr, p.status, p.issuedBy || '']),
+      ...expenses.map((e) => ['Egreso', e.voucher, e.recipient, e.concept, e.category, e.date, e.amount, e.cash, e.qr, e.status, e.issuedBy || '']),
+    ]
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+    const link = document.createElement('a')
+    link.href = url; link.download = `sec-car-historial-${todayISO()}.csv`; link.click()
+    URL.revokeObjectURL(url)
+  }
+  const clearHistory = () => {
+    if (confirmClear.trim().toUpperCase() !== 'BORRAR') return
+    setPayments([]); setExpenses([]); setConfirmClear('')
+  }
 
   if (!loggedUser) return <AccessScreen onLogin={setLoggedUser} />
 
@@ -299,11 +318,22 @@ function App() {
         </div>}
       </section>}
 
-      {activePage === 'Reportes' && <section className="stats-grid">
-        <div className="stat-card accent-card"><div className="stat-head"><span>TOTAL INGRESOS</span><i>↗</i></div><strong>{money(totalIncome)}</strong><small>Efectivo {money(activeIncome.reduce((s, p) => s + p.cash, 0))} · QR {money(activeIncome.reduce((s, p) => s + p.qr, 0))}</small></div>
-        <div className="stat-card"><div className="stat-head"><span>TOTAL EGRESOS</span><i className="rose-icon">↘</i></div><strong>{money(totalExpense)}</strong><small>Efectivo {money(activeExpenses.reduce((s, e) => s + e.cash, 0))} · QR {money(activeExpenses.reduce((s, e) => s + e.qr, 0))}</small></div>
-        <div className="stat-card"><div className="stat-head"><span>SALDO GENERAL</span><i className="green-icon">◈</i></div><strong>{money(balance)}</strong><small>Desde el inicio del registro</small></div>
-      </section>}
+      {activePage === 'Reportes' && <>
+        <section className="stats-grid">
+          <div className="stat-card accent-card"><div className="stat-head"><span>TOTAL INGRESOS</span><i>↗</i></div><strong>{money(totalIncome)}</strong><small>Efectivo {money(activeIncome.reduce((s, p) => s + p.cash, 0))} · QR {money(activeIncome.reduce((s, p) => s + p.qr, 0))}</small></div>
+          <div className="stat-card"><div className="stat-head"><span>TOTAL EGRESOS</span><i className="rose-icon">↘</i></div><strong>{money(totalExpense)}</strong><small>Efectivo {money(activeExpenses.reduce((s, e) => s + e.cash, 0))} · QR {money(activeExpenses.reduce((s, e) => s + e.qr, 0))}</small></div>
+          <div className="stat-card"><div className="stat-head"><span>SALDO GENERAL</span><i className="green-icon">◈</i></div><strong>{money(balance)}</strong><small>Desde el inicio del registro</small></div>
+        </section>
+        <section className="panel">
+          <div className="panel-head"><div><h3>Respaldo y mantenimiento</h3><p>Descarga el historial antes de vaciarlo, para no perder datos antiguos</p></div></div>
+          <div className="payment-note">Recomendamos descargar este archivo periódicamente y guardarlo en tu Google Drive (u otro almacenamiento). Así, si en el futuro necesitas liberar espacio, puedes vaciar el historial sin perder los registros antiguos.</div>
+          <div className="inline-form"><button className="outline-button" onClick={exportBackup}>Descargar historial (CSV) <span>↓</span></button></div>
+          <div className="inline-form">
+            <label>Escribe BORRAR para confirmar<input value={confirmClear} onChange={(event) => setConfirmClear(event.target.value)} placeholder="BORRAR" /></label>
+            <button className="danger-button" disabled={confirmClear.trim().toUpperCase() !== 'BORRAR'} onClick={clearHistory}>Vaciar historial de ingresos y egresos</button>
+          </div>
+        </section>
+      </>}
     </main>
 
     {showIncomeModal && <div className="modal-backdrop" onClick={() => setShowIncomeModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>

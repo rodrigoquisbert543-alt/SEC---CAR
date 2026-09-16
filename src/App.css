@@ -21,6 +21,8 @@
 .chip-list { display: flex; flex-wrap: wrap; gap: 10px; padding: 18px 22px; }.chip { display: flex; align-items: center; gap: 10px; background: #f0f7f0; border: 1px solid #d9ecdd; border-radius: 20px; padding: 8px 10px 8px 16px; font-size: 11px; color: #1f6b3a; }.chip strong { display: block; color: #173d2a; }.chip small { display: block; color: #6f8f7a; font-size: 9px; margin-top: 2px; }.chip button { border: 0; background: #ffffffb0; color: #b34c3a; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; flex-shrink: 0; }
 .empty-hint { color: #9aa6a4; font-size: 11px; padding: 16px 22px; }
 .owner-lock { color: #a7b2af; font-size: 9px; font-style: italic; }
+.danger-button { border: 1px solid #e4b4a2; background: #fff2ee; color: #b3463a; border-radius: 4px; padding: 9px 14px; font-size: 11px; font-weight: 700; align-self: center; cursor: pointer; }
+.danger-button:disabled { opacity: .5; cursor: not-allowed; }
 .app-shell.dark { background: #0e1512; }
 .app-shell.dark .main-content { color: #cddad4; }
 .app-shell.dark .eyebrow { color: #7f938c; }
