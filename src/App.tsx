@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 type Account = { name: 'Melitza' | 'Ovet'; password: string; needsPassword: boolean }
@@ -53,42 +53,285 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
   </div><div className="auth-visual"><div className="visual-note"><span>CONTROL FINANCIERO</span><strong>Recibos claros.<br />Cuentas en orden.</strong><p>Ingresos, egresos y pagos parciales en un solo lugar.</p></div><div className="visual-receipt"><small>SEC-CAR · RECIBO DE PAGO</small><strong>Bs 250.00</strong><span>ORIGINAL + COPIA ADMINISTRACIÓN</span></div></div></div>
 }
 
-type Payment = { id: string; receipt: string; person: string; event: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado' }
-const initialPayments: Payment[] = [
-  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', event: 'Retiro de damas 2024', date: '12 Jun 2024', amount: 250, cash: 250, qr: 0, status: 'Aplicado' },
-  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', event: 'Campamento juvenil', date: '11 Jun 2024', amount: 180, cash: 80, qr: 100, status: 'Aplicado' },
-  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', event: 'Seminario de liderazgo', date: '10 Jun 2024', amount: 90, cash: 0, qr: 90, status: 'Aplicado' },
-  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', event: 'Retiro de damas 2024', date: '08 Jun 2024', amount: 120, cash: 120, qr: 0, status: 'Aplicado' },
-]
+// Persiste cualquier estado en localStorage bajo la clave dada
+function usePersistedState<T>(key: string, initial: T) {
+  const [state, setState] = useState<T>(() => {
+    const stored = localStorage.getItem(key)
+    return stored ? (JSON.parse(stored) as T) : initial
+  })
+  useEffect(() => { localStorage.setItem(key, JSON.stringify(state)) }, [key, state])
+  return [state, setState] as const
+}
+
+const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+const formatDate = (iso: string) => { const d = new Date(`${iso}T00:00:00`); return `${String(d.getDate()).padStart(2, '0')} ${monthNames[d.getMonth()]} ${d.getFullYear()}` }
+const todayISO = () => new Date().toISOString().slice(0, 10)
 const money = (value: number) => `Bs ${value.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`
+const nextCode = (prefix: string, count: number) => `${prefix}-${String(count).padStart(5, '0')}`
+
+type Payment = { id: string; receipt: string; person: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado' }
+type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado' }
+type Person = { id: string; name: string; phone: string; notes: string }
+
+const initialPayments: Payment[] = [
+  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado' },
+  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado' },
+  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado' },
+  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado' },
+]
+
+const initialExpenses: Expense[] = [
+  { id: 'e1', voucher: 'EGR-00032', concept: 'Pago de electricidad', recipient: 'ENDE', category: 'Servicios básicos', date: '2024-06-09', amount: 145, cash: 145, qr: 0, status: 'Aplicado' },
+  { id: 'e2', voucher: 'EGR-00031', concept: 'Materiales para campamento', recipient: 'Ferretería Central', category: 'Materiales y suministros', date: '2024-06-07', amount: 210, cash: 60, qr: 150, status: 'Aplicado' },
+]
+
+const initialEventOptions = ['Campamento juvenil', 'Seminario de liderazgo', 'Retiro de damas 2024']
+const initialCategoryOptions = ['Servicios básicos', 'Mantenimiento', 'Materiales y suministros', 'Alimentación', 'Transporte', 'Honorarios', 'Otros']
+const initialPeople: Person[] = []
+const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Personas'] as const
 
 function App() {
   const [loggedUser, setLoggedUser] = useState<Account['name'] | null>(null)
-  const [activePage, setActivePage] = useState('Resumen')
-  const [payments, setPayments] = useState(initialPayments)
+  const [activePage, setActivePage] = useState<string>('Resumen')
+
+  const [payments, setPayments] = usePersistedState<Payment[]>('sec-car-payments', initialPayments)
+  const [expenses, setExpenses] = usePersistedState<Expense[]>('sec-car-expenses', initialExpenses)
+  const [eventOptions, setEventOptions] = usePersistedState<string[]>('sec-car-events', initialEventOptions)
+  const [categoryOptions, setCategoryOptions] = usePersistedState<string[]>('sec-car-categories', initialCategoryOptions)
+  const [people, setPeople] = usePersistedState<Person[]>('sec-car-people', initialPeople)
+
   const [query, setQuery] = useState('')
-  const [showModal, setShowModal] = useState(false)
+  const [expenseQuery, setExpenseQuery] = useState('')
+  const [newEventName, setNewEventName] = useState('')
+
+  const [showIncomeModal, setShowIncomeModal] = useState(false)
+  const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
+  const [showVoucher, setShowVoucher] = useState(false)
   const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null)
-  const [form, setForm] = useState({ person: '', event: 'Campamento juvenil', cash: '', qr: '' })
-  const filteredPayments = useMemo(() => payments.filter((payment) => `${payment.person} ${payment.event} ${payment.receipt}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
-  const total = payments.filter((payment) => payment.status === 'Aplicado').reduce((sum, payment) => sum + payment.amount, 0)
-  const savePayment = () => {
-    if (!form.person || (!form.cash && !form.qr)) return
-    const cash = Number(form.cash) || 0; const qr = Number(form.qr) || 0
-    const next: Payment = { id: crypto.randomUUID(), receipt: `REC-${String(242 + payments.length - 4).padStart(5, '0')}`, person: form.person, event: form.event, date: '15 Jun 2024', amount: cash + qr, cash, qr, status: 'Aplicado' }
-    setPayments([next, ...payments]); setSelectedReceipt(next); setShowModal(false); setShowReceipt(true); setForm({ person: '', event: 'Campamento juvenil', cash: '', qr: '' })
+  const [selectedVoucher, setSelectedVoucher] = useState<Expense | null>(null)
+
+  const [incomeForm, setIncomeForm] = useState({ person: '', concept: '', cash: '', qr: '' })
+  const [expenseForm, setExpenseForm] = useState({ concept: '', recipient: '', category: '', cash: '', qr: '' })
+  const [personForm, setPersonForm] = useState({ name: '', phone: '', notes: '' })
+
+  const filteredPayments = useMemo(() => payments.filter((p) => `${p.person} ${p.concept} ${p.receipt}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
+  const filteredExpenses = useMemo(() => expenses.filter((e) => `${e.recipient} ${e.concept} ${e.category} ${e.voucher}`.toLowerCase().includes(expenseQuery.toLowerCase())), [expenses, expenseQuery])
+
+  const activeIncome = payments.filter((p) => p.status === 'Aplicado')
+  const activeExpenses = expenses.filter((e) => e.status === 'Aplicado')
+  const totalIncome = activeIncome.reduce((sum, p) => sum + p.amount, 0)
+  const totalExpense = activeExpenses.reduce((sum, e) => sum + e.amount, 0)
+  const balance = totalIncome - totalExpense
+
+  const thisMonth = todayISO().slice(0, 7)
+  const incomeThisMonthList = activeIncome.filter((p) => p.date.slice(0, 7) === thisMonth)
+  const expenseThisMonthList = activeExpenses.filter((e) => e.date.slice(0, 7) === thisMonth)
+  const incomeThisMonth = incomeThisMonthList.reduce((sum, p) => sum + p.amount, 0)
+  const expenseThisMonth = expenseThisMonthList.reduce((sum, e) => sum + e.amount, 0)
+
+  const movements = useMemo(() => {
+    const incomes = payments.map((p) => ({ id: p.id, type: 'Ingreso' as const, code: p.receipt, label: p.person, concept: p.concept, date: p.date, amount: p.amount, status: p.status }))
+    const outs = expenses.map((e) => ({ id: e.id, type: 'Egreso' as const, code: e.voucher, label: e.recipient, concept: e.concept, date: e.date, amount: e.amount, status: e.status }))
+    return [...incomes, ...outs].sort((a, b) => b.date.localeCompare(a.date))
+  }, [payments, expenses])
+
+  const eventStats = eventOptions.map((name) => {
+    const related = payments.filter((p) => p.concept === name)
+    return { name, count: related.length, total: related.reduce((sum, p) => sum + p.amount, 0) }
+  })
+
+  const peopleWithTotals = people.map((person) => {
+    const related = payments.filter((p) => p.person.toLowerCase() === person.name.toLowerCase() && p.status === 'Aplicado')
+    return { ...person, total: related.reduce((sum, p) => sum + p.amount, 0), count: related.length }
+  })
+  const undirectoried = Array.from(new Set(payments.map((p) => p.person))).filter((name) => !people.some((person) => person.name.toLowerCase() === name.toLowerCase()))
+
+  const saveIncome = () => {
+    const cash = Number(incomeForm.cash) || 0
+    const qr = Number(incomeForm.qr) || 0
+    if (!incomeForm.person.trim() || !incomeForm.concept.trim() || (!cash && !qr)) return
+    const concept = incomeForm.concept.trim()
+    const next: Payment = { id: crypto.randomUUID(), receipt: nextCode('REC', 242 + payments.length), person: incomeForm.person.trim(), concept, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado' }
+    setPayments([next, ...payments])
+    if (!eventOptions.includes(concept)) setEventOptions([...eventOptions, concept])
+    setSelectedReceipt(next); setShowIncomeModal(false); setShowReceipt(true)
+    setIncomeForm({ person: '', concept: '', cash: '', qr: '' })
   }
+
+  const saveExpense = () => {
+    const cash = Number(expenseForm.cash) || 0
+    const qr = Number(expenseForm.qr) || 0
+    if (!expenseForm.recipient.trim() || !expenseForm.concept.trim() || (!cash && !qr)) return
+    const category = expenseForm.category.trim() || 'Otros'
+    const next: Expense = { id: crypto.randomUUID(), voucher: nextCode('EGR', 33 + expenses.length), concept: expenseForm.concept.trim(), recipient: expenseForm.recipient.trim(), category, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado' }
+    setExpenses([next, ...expenses])
+    if (!categoryOptions.includes(category)) setCategoryOptions([...categoryOptions, category])
+    setSelectedVoucher(next); setShowExpenseModal(false); setShowVoucher(true)
+    setExpenseForm({ concept: '', recipient: '', category: '', cash: '', qr: '' })
+  }
+
+  const toggleIncomeStatus = (id: string) => setPayments(payments.map((p) => p.id === id ? { ...p, status: p.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : p))
+  const toggleExpenseStatus = (id: string) => setExpenses(expenses.map((e) => e.id === id ? { ...e, status: e.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : e))
+  const addEventOption = () => { const name = newEventName.trim(); if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name]); setNewEventName('') }
+  const removeEventOption = (name: string) => setEventOptions(eventOptions.filter((option) => option !== name))
+  const addPerson = () => {
+    if (!personForm.name.trim()) return
+    setPeople([...people, { id: crypto.randomUUID(), name: personForm.name.trim(), phone: personForm.phone.trim(), notes: personForm.notes.trim() }])
+    setPersonForm({ name: '', phone: '', notes: '' })
+  }
+  const removePerson = (id: string) => setPeople(people.filter((person) => person.id !== id))
+  const registerPayer = (name: string) => setPeople([...people, { id: crypto.randomUUID(), name, phone: '', notes: '' }])
 
   if (!loggedUser) return <AccessScreen onLogin={setLoggedUser} />
 
   return <div className="app-shell">
-    <aside className="sidebar"><div className="brand"><div className="brand-mark"><img src="/logo-seccar.jpg" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Administración</span></div></div><div className="side-label">GESTIÓN</div><nav>{['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Personas'].map((item) => <button key={item} className={activePage === item ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage(item)}><span className="nav-icon">{item === 'Resumen' ? '▦' : item === 'Ingresos' ? '↗' : item === 'Egresos' ? '↘' : item === 'Eventos' ? '◷' : '♙'}</span>{item}</button>)}</nav><div className="side-label report-label">REPORTES</div><button className="nav-item"><span className="nav-icon">▤</span>Reportes</button><div className="sidebar-bottom"><div className="sync"><span className="sync-dot"></span><div><strong>Sincronizado</strong><small>Todos los cambios guardados</small></div></div><div className="profile"><div className="avatar">JM</div><div><strong>José Manuel</strong><small>Administrador</small></div><span>•••</span></div></div></aside>
-    <main className="main-content"><header className="topbar"><div><span className="eyebrow">CENTRO DE EDUCACIÓN CRISTIANA</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div><div className="top-actions"><button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button><div className="date-pill">15 JUN 2024 <span>⌄</span></div></div></header>
-      {activePage === 'Resumen' ? <><section className="hero-row"><div><h2>Buenos días, José Manuel <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><span>＋</span> Nuevo recibo</button></section><section className="stats-grid"><div className="stat-card accent-card"><div className="stat-head"><span>INGRESOS DEL MES</span><i>↗</i></div><strong>{money(total)}</strong><small><b>↑ 12.5%</b> vs. mes anterior</small><div className="sparkline"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div><div className="stat-card"><div className="stat-head"><span>INGRESOS DE HOY</span><i className="green-icon">◷</i></div><strong>{money(250)}</strong><small><b className="dark">4 recibos</b> registrados hoy</small><div className="mini-bars"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div><div className="stat-card"><div className="stat-head"><span>PENDIENTE POR COBRAR</span><i className="amber-icon">◌</i></div><strong>{money(1250)}</strong><small><b className="dark">18 personas</b> con saldo pendiente</small><div className="progress"><span></span></div><small className="progress-label">68% del total de inscripciones</small></div></section><section className="content-grid"><div className="panel transactions"><div className="panel-head"><div><h3>Últimos movimientos</h3><p>Los recibos más recientes del centro</p></div><button className="text-button" onClick={() => setActivePage('Ingresos')}>Ver todos <span>→</span></button></div><div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre o recibo..." /></div><button className="filter-button">Fechas: <b>Este mes</b> ⌄</button><button className="filter-button">Tipo: <b>Todos</b> ⌄</button></div><div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>PERSONA</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th><th></th></tr></thead><tbody>{filteredPayments.map((payment) => <tr key={payment.id}><td><button className="receipt-link" onClick={() => { setSelectedReceipt(payment); setShowReceipt(true) }}>{payment.receipt}</button></td><td><div className="person-cell"><div className="tiny-avatar">{payment.person.split(' ').map((part) => part[0]).slice(0, 2).join('')}</div><strong>{payment.person}</strong></div></td><td>{payment.event}</td><td>{payment.date}</td><td><strong>{money(payment.amount)}</strong><small className="method">{payment.cash > 0 && payment.qr > 0 ? 'Efectivo + QR' : payment.qr > 0 ? 'QR' : 'Efectivo'}</small></td><td><span className="status">● {payment.status}</span></td><td><button className="more-button">•••</button></td></tr>)}</tbody></table></div></div><div className="panel events"><div className="panel-head"><div><h3>Próximos eventos</h3><p>Inscripciones abiertas</p></div><button className="more-button">•••</button></div>{[['22', 'JUN', 'Campamento juvenil', '22 - 24 Jun 2024', '24 / 40'], ['06', 'JUL', 'Seminario de liderazgo', '06 Jul 2024', '18 / 30'], ['17', 'AGO', 'Retiro de damas 2024', '17 - 18 Ago 2024', '12 / 50']].map((event) => <div className="event-item" key={event[2]}><div className="event-date"><b>{event[0]}</b><span>{event[1]}</span></div><div><strong>{event[2]}</strong><small>{event[3]}</small></div><span className="event-count">{event[4]}</span></div>)}<button className="outline-button" onClick={() => setActivePage('Eventos')}>Gestionar eventos <span>→</span></button></div></section></> : <section className="empty-page"><div className="empty-icon">{activePage === 'Ingresos' ? '↗' : activePage === 'Egresos' ? '↘' : '◷'}</div><h2>Gestión de {activePage.toLowerCase()}</h2><p>Esta vista está lista para conectar con el registro detallado.</p><button className="primary-button" onClick={() => setShowModal(true)}>＋ Nuevo registro</button></section>}
+    <aside className="sidebar">
+      <div className="brand"><div className="brand-mark"><img src="/logo-seccar.jpg" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Administración</span></div></div>
+      <div className="side-label">GESTIÓN</div>
+      <nav>{navItems.map((item) => <button key={item} className={activePage === item ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage(item)}><span className="nav-icon">{item === 'Resumen' ? '▦' : item === 'Ingresos' ? '↗' : item === 'Egresos' ? '↘' : item === 'Eventos' ? '◷' : '♙'}</span>{item}</button>)}</nav>
+      <div className="side-label report-label">REPORTES</div>
+      <button className={activePage === 'Reportes' ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage('Reportes')}><span className="nav-icon">▤</span>Reportes</button>
+      <div className="sidebar-bottom">
+        <div className="sync"><span className="sync-dot"></span><div><strong>Sincronizado</strong><small>Todos los cambios guardados</small></div></div>
+        <div className="profile"><div className="avatar">{loggedUser[0]}</div><div><strong>{loggedUser}</strong><small>Administrador</small></div><span>•••</span></div>
+      </div>
+    </aside>
+    <main className="main-content">
+      <header className="topbar"><div><span className="eyebrow">CENTRO DE EDUCACIÓN CRISTIANA</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div><div className="top-actions"><button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button><div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div></div></header>
+
+      {activePage === 'Resumen' && <>
+        <section className="hero-row"><div><h2>Buenos días, {loggedUser} <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div><div className="hero-actions"><button className="outline-button" onClick={() => setShowExpenseModal(true)}><span>−</span> Nuevo egreso</button><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div></section>
+        <section className="stats-grid">
+          <div className="stat-card accent-card"><div className="stat-head"><span>INGRESOS DEL MES</span><i>↗</i></div><strong>{money(incomeThisMonth)}</strong><small><b className="dark">{incomeThisMonthList.length} recibos</b> este mes</small></div>
+          <div className="stat-card"><div className="stat-head"><span>EGRESOS DEL MES</span><i className="rose-icon">↘</i></div><strong>{money(expenseThisMonth)}</strong><small><b className="dark">{expenseThisMonthList.length} egresos</b> este mes</small></div>
+          <div className="stat-card"><div className="stat-head"><span>SALDO ACTUAL</span><i className="green-icon">◈</i></div><strong>{money(balance)}</strong><small><b className={balance >= 0 ? 'dark' : 'rose-text'}>{balance >= 0 ? 'Saldo positivo' : 'Saldo negativo'}</b></small></div>
+        </section>
+        <section className="content-grid">
+          <div className="panel transactions">
+            <div className="panel-head"><div><h3>Últimos movimientos</h3><p>Ingresos y egresos más recientes</p></div><button className="text-button" onClick={() => setActivePage('Ingresos')}>Ver todos <span>→</span></button></div>
+            <div className="table-wrap"><table><thead><tr><th>CÓDIGO</th><th>TIPO</th><th>DETALLE</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th></tr></thead><tbody>
+              {movements.slice(0, 6).map((m) => <tr key={`${m.type}-${m.id}`}>
+                <td>{m.code}</td>
+                <td><span className={m.type === 'Ingreso' ? 'status' : 'status void'}>{m.type}</span></td>
+                <td className="person-cell"><span className="tiny-avatar">{m.label[0]}</span><span>{m.label}<span className="method">{m.concept}</span></span></td>
+                <td>{formatDate(m.date)}</td>
+                <td>{money(m.amount)}</td>
+                <td><span className={m.status === 'Aplicado' ? 'status' : 'status void'}>{m.status}</span></td>
+              </tr>)}
+            </tbody></table></div>
+          </div>
+          <div className="panel events">
+            <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Sugerencias usadas al emitir recibos</p></div><button className="text-button" onClick={() => setActivePage('Eventos')}>Gestionar <span>→</span></button></div>
+            {eventStats.length === 0 && <p className="empty-hint">Aún no hay eventos registrados.</p>}
+            {eventStats.map((stat) => <div className="event-item" key={stat.name}><div className="event-date"><b>{stat.count}</b><span>recibos</span></div><div><strong>{stat.name}</strong><small>{money(stat.total)} recaudados</small></div></div>)}
+          </div>
+        </section>
+      </>}
+
+      {activePage === 'Ingresos' && <section className="panel transactions">
+        <div className="panel-head"><div><h3>Ingresos</h3><p>Todos los recibos emitidos</p></div><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div>
+        <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, concepto o recibo..." /></div></div>
+        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>PERSONA</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th><th></th></tr></thead><tbody>
+          {filteredPayments.map((payment) => <tr key={payment.id}>
+            <td><button className="receipt-link" onClick={() => { setSelectedReceipt(payment); setShowReceipt(true) }}>{payment.receipt}</button></td>
+            <td className="person-cell"><span className="tiny-avatar">{payment.person[0]}</span>{payment.person}</td>
+            <td>{payment.concept}</td>
+            <td>{formatDate(payment.date)}</td>
+            <td>{money(payment.amount)}<span className="method">Efectivo {money(payment.cash)} · QR {money(payment.qr)}</span></td>
+            <td><span className={payment.status === 'Aplicado' ? 'status' : 'status void'}>{payment.status}</span></td>
+            <td><button className="status-toggle" onClick={() => toggleIncomeStatus(payment.id)}>{payment.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button></td>
+          </tr>)}
+        </tbody></table></div>
+      </section>}
+
+      {activePage === 'Egresos' && <section className="panel transactions">
+        <div className="panel-head"><div><h3>Egresos</h3><p>Todos los pagos y gastos registrados</p></div><button className="primary-button" onClick={() => setShowExpenseModal(true)}><span>＋</span> Nuevo egreso</button></div>
+        <div className="filters"><div className="search"><span>⌕</span><input value={expenseQuery} onChange={(event) => setExpenseQuery(event.target.value)} placeholder="Buscar por destinatario, categoría o comprobante..." /></div></div>
+        <div className="table-wrap"><table><thead><tr><th>COMPROBANTE</th><th>DESTINATARIO</th><th>CONCEPTO</th><th>CATEGORÍA</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th><th></th></tr></thead><tbody>
+          {filteredExpenses.map((expense) => <tr key={expense.id}>
+            <td><button className="receipt-link" onClick={() => { setSelectedVoucher(expense); setShowVoucher(true) }}>{expense.voucher}</button></td>
+            <td className="person-cell"><span className="tiny-avatar">{expense.recipient[0]}</span>{expense.recipient}</td>
+            <td>{expense.concept}</td>
+            <td>{expense.category}</td>
+            <td>{formatDate(expense.date)}</td>
+            <td>{money(expense.amount)}<span className="method">Efectivo {money(expense.cash)} · QR {money(expense.qr)}</span></td>
+            <td><span className={expense.status === 'Aplicado' ? 'status' : 'status void'}>{expense.status}</span></td>
+            <td><button className="status-toggle" onClick={() => toggleExpenseStatus(expense.id)}>{expense.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button></td>
+          </tr>)}
+        </tbody></table></div>
+      </section>}
+
+      {activePage === 'Eventos' && <section className="panel">
+        <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Estas sugerencias aparecen al registrar un ingreso; el campo de concepto siempre acepta texto libre.</p></div></div>
+        <div className="inline-form">
+          <label>Nuevo evento o concepto<input value={newEventName} onChange={(event) => setNewEventName(event.target.value)} placeholder="Ej. Retiro de varones 2025" /></label>
+          <button className="primary-button" onClick={addEventOption}>Agregar</button>
+        </div>
+        <div className="chip-list">
+          {eventStats.map((stat) => <div className="chip" key={stat.name}><div><strong>{stat.name}</strong><small>{stat.count} recibos · {money(stat.total)}</small></div><button onClick={() => removeEventOption(stat.name)} aria-label={`Quitar ${stat.name}`}>×</button></div>)}
+        </div>
+      </section>}
+
+      {activePage === 'Personas' && <section className="panel">
+        <div className="panel-head"><div><h3>Directorio de personas</h3><p>Contactos registrados y su historial de aportes</p></div></div>
+        <div className="inline-form">
+          <label>Nombre<input value={personForm.name} onChange={(event) => setPersonForm({ ...personForm, name: event.target.value })} placeholder="Nombre completo" /></label>
+          <label>Teléfono<input value={personForm.phone} onChange={(event) => setPersonForm({ ...personForm, phone: event.target.value })} placeholder="Opcional" /></label>
+          <label>Notas<input value={personForm.notes} onChange={(event) => setPersonForm({ ...personForm, notes: event.target.value })} placeholder="Opcional" /></label>
+          <button className="primary-button" onClick={addPerson}>Agregar persona</button>
+        </div>
+        <div className="table-wrap"><table><thead><tr><th>NOMBRE</th><th>TELÉFONO</th><th>NOTAS</th><th>TOTAL APORTADO</th><th></th></tr></thead><tbody>
+          {peopleWithTotals.map((person) => <tr key={person.id}>
+            <td className="person-cell"><span className="tiny-avatar">{person.name[0]}</span>{person.name}</td>
+            <td>{person.phone || '—'}</td>
+            <td>{person.notes || '—'}</td>
+            <td>{money(person.total)}<span className="method">{person.count} recibos</span></td>
+            <td><button className="status-toggle" onClick={() => removePerson(person.id)}>Quitar</button></td>
+          </tr>)}
+        </tbody></table></div>
+        {undirectoried.length > 0 && <div className="chip-list">
+          {undirectoried.map((name) => <div className="chip" key={name}><div><strong>{name}</strong><small>Ya tiene recibos, aún no está en el directorio</small></div><button onClick={() => registerPayer(name)} aria-label={`Agregar ${name}`}>＋</button></div>)}
+        </div>}
+      </section>}
+
+      {activePage === 'Reportes' && <section className="stats-grid">
+        <div className="stat-card accent-card"><div className="stat-head"><span>TOTAL INGRESOS</span><i>↗</i></div><strong>{money(totalIncome)}</strong><small>Efectivo {money(activeIncome.reduce((s, p) => s + p.cash, 0))} · QR {money(activeIncome.reduce((s, p) => s + p.qr, 0))}</small></div>
+        <div className="stat-card"><div className="stat-head"><span>TOTAL EGRESOS</span><i className="rose-icon">↘</i></div><strong>{money(totalExpense)}</strong><small>Efectivo {money(activeExpenses.reduce((s, e) => s + e.cash, 0))} · QR {money(activeExpenses.reduce((s, e) => s + e.qr, 0))}</small></div>
+        <div className="stat-card"><div className="stat-head"><span>SALDO GENERAL</span><i className="green-icon">◈</i></div><strong>{money(balance)}</strong><small>Desde el inicio del registro</small></div>
+      </section>}
     </main>
-    {showModal && <div className="modal-backdrop" onClick={() => setShowModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}><div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div><button className="close-button" onClick={() => setShowModal(false)}>×</button></div><label>Nombre de la persona<input value={form.person} onChange={(event) => setForm({ ...form, person: event.target.value })} placeholder="Ej. Ana Lopez" /></label><label>Evento<select value={form.event} onChange={(event) => setForm({ ...form, event: event.target.value })}><option>Campamento juvenil</option><option>Seminario de liderazgo</option><option>Retiro de damas 2024</option></select></label><div className="form-row"><label>Efectivo (Bs)<input type="number" value={form.cash} onChange={(event) => setForm({ ...form, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={form.qr} onChange={(event) => setForm({ ...form, qr: event.target.value })} placeholder="0.00" /></label></div><div className="payment-note">Puedes combinar efectivo y QR en un mismo recibo. El original y la copia se preparan para imprimir.</div><button className="primary-button full" onClick={savePayment}>Guardar y emitir recibo <span>→</span></button></div></div>}
-    {showReceipt && selectedReceipt && <div className="modal-backdrop" onClick={() => setShowReceipt(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}><div className="receipt-actions"><span>Vista previa del comprobante</span><button className="close-button" onClick={() => setShowReceipt(false)}>×</button></div><div className="receipt-paper"><div className="receipt-brand">SEC-CAR<small>Centro de Educación Cristiana</small></div><div className="receipt-type">RECIBO DE PAGO <strong>{selectedReceipt.receipt}</strong></div><div className="receipt-line"><span>Recibí de:</span><b>{selectedReceipt.person}</b></div><div className="receipt-line"><span>Concepto:</span><b>{selectedReceipt.event}</b></div><div className="receipt-line"><span>Fecha:</span><b>{selectedReceipt.date}</b></div><div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(selectedReceipt.amount)}</strong></div><div className="receipt-methods"><span>Efectivo {money(selectedReceipt.cash)}</span><span>QR {money(selectedReceipt.qr)}</span></div><div className="signature-row"><span>Firma del pagador</span><span>Firma administrador</span></div><div className="copy-mark">ORIGINAL <span>·</span> COPIA ADMINISTRACIÓN</div></div><button className="outline-button full" onClick={() => window.print()}>Imprimir original y copia <span>↗</span></button></div></div>}
+
+    {showIncomeModal && <div className="modal-backdrop" onClick={() => setShowIncomeModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div><button className="close-button" onClick={() => setShowIncomeModal(false)}>×</button></div>
+      <label>Nombre de la persona<input value={incomeForm.person} onChange={(event) => setIncomeForm({ ...incomeForm, person: event.target.value })} placeholder="Ej. Ana Lopez" /></label>
+      <label>Evento o concepto<input list="event-suggestions" value={incomeForm.concept} onChange={(event) => setIncomeForm({ ...incomeForm, concept: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="event-suggestions">{eventOptions.map((option) => <option value={option} key={option} />)}</datalist></label>
+      <div className="form-row"><label>Efectivo (Bs)<input type="number" value={incomeForm.cash} onChange={(event) => setIncomeForm({ ...incomeForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={incomeForm.qr} onChange={(event) => setIncomeForm({ ...incomeForm, qr: event.target.value })} placeholder="0.00" /></label></div>
+      <div className="payment-note">Puedes combinar efectivo y QR en un mismo recibo. El concepto es libre; las sugerencias solo ayudan a escribir más rápido.</div>
+      <button className="primary-button full" onClick={saveIncome}>Guardar y emitir recibo <span>→</span></button>
+    </div></div>}
+
+    {showExpenseModal && <div className="modal-backdrop" onClick={() => setShowExpenseModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Registrar egreso</h2></div><button className="close-button" onClick={() => setShowExpenseModal(false)}>×</button></div>
+      <label>Pagado a<input value={expenseForm.recipient} onChange={(event) => setExpenseForm({ ...expenseForm, recipient: event.target.value })} placeholder="Ej. Ferretería Central" /></label>
+      <label>Concepto<input value={expenseForm.concept} onChange={(event) => setExpenseForm({ ...expenseForm, concept: event.target.value })} placeholder="Ej. Materiales para campamento" /></label>
+      <label>Categoría<input list="category-suggestions" value={expenseForm.category} onChange={(event) => setExpenseForm({ ...expenseForm, category: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="category-suggestions">{categoryOptions.map((option) => <option value={option} key={option} />)}</datalist></label>
+      <div className="form-row"><label>Efectivo (Bs)<input type="number" value={expenseForm.cash} onChange={(event) => setExpenseForm({ ...expenseForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={expenseForm.qr} onChange={(event) => setExpenseForm({ ...expenseForm, qr: event.target.value })} placeholder="0.00" /></label></div>
+      <div className="payment-note">Puedes combinar efectivo y QR en un mismo egreso. La categoría es libre; las sugerencias solo ayudan a escribir más rápido.</div>
+      <button className="primary-button full" onClick={saveExpense}>Guardar y emitir comprobante <span>→</span></button>
+    </div></div>}
+
+    {showReceipt && selectedReceipt && <div className="modal-backdrop" onClick={() => setShowReceipt(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
+      <div className="receipt-actions"><span>Vista previa del comprobante</span><button className="close-button" onClick={() => setShowReceipt(false)}>×</button></div>
+      <div className="receipt-paper"><div className="receipt-brand">SEC-CAR<small>Centro de Educación Cristiana</small></div><div className="receipt-type">RECIBO DE PAGO <strong>{selectedReceipt.receipt}</strong></div><div className="receipt-line"><span>Recibí de:</span><b>{selectedReceipt.person}</b></div><div className="receipt-line"><span>Concepto:</span><b>{selectedReceipt.concept}</b></div><div className="receipt-line"><span>Fecha:</span><b>{formatDate(selectedReceipt.date)}</b></div><div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(selectedReceipt.amount)}</strong></div><div className="receipt-methods"><span>Efectivo {money(selectedReceipt.cash)}</span><span>QR {money(selectedReceipt.qr)}</span></div><div className="signature-row"><span>Firma del pagador</span><span>Firma administrador</span></div><div className="copy-mark">ORIGINAL <span>·</span> COPIA ADMINISTRACIÓN</div></div>
+      <button className="outline-button full" onClick={() => window.print()}>Imprimir original y copia <span>↗</span></button>
+    </div></div>}
+
+    {showVoucher && selectedVoucher && <div className="modal-backdrop" onClick={() => setShowVoucher(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
+      <div className="receipt-actions"><span>Vista previa del comprobante</span><button className="close-button" onClick={() => setShowVoucher(false)}>×</button></div>
+      <div className="receipt-paper"><div className="receipt-brand">SEC-CAR<small>Centro de Educación Cristiana</small></div><div className="receipt-type">COMPROBANTE DE EGRESO <strong>{selectedVoucher.voucher}</strong></div><div className="receipt-line"><span>Pagado a:</span><b>{selectedVoucher.recipient}</b></div><div className="receipt-line"><span>Concepto:</span><b>{selectedVoucher.concept}</b></div><div className="receipt-line"><span>Categoría:</span><b>{selectedVoucher.category}</b></div><div className="receipt-line"><span>Fecha:</span><b>{formatDate(selectedVoucher.date)}</b></div><div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(selectedVoucher.amount)}</strong></div><div className="receipt-methods"><span>Efectivo {money(selectedVoucher.cash)}</span><span>QR {money(selectedVoucher.qr)}</span></div><div className="signature-row"><span>Firma del beneficiario</span><span>Firma administrador</span></div><div className="copy-mark">ORIGINAL <span>·</span> COPIA ADMINISTRACIÓN</div></div>
+      <button className="outline-button full" onClick={() => window.print()}>Imprimir original y copia <span>↗</span></button>
+    </div></div>}
   </div>
 }
 
