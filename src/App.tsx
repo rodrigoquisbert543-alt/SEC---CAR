@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import html2canvas from 'html2canvas'
 import './App.css'
 
 type Account = { name: 'Melitza' | 'Ovet'; password: string; needsPassword: boolean }
@@ -69,15 +70,24 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 const money = (value: number) => `Bs ${value.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`
 const nextCode = (prefix: string, count: number) => `${prefix}-${String(count).padStart(5, '0')}`
 
-type Payment = { id: string; receipt: string; person: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
+type Payment = { id: string; receipt: string; person: string; carnet: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
 type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
-type Person = { id: string; name: string; phone: string; notes: string }
+type Person = { id: string; name: string; carnet: string; phone: string; notes: string }
+
+// Clasifica el avance de pago de una persona respecto al precio de un evento
+type PaymentStanding = 'completo' | 'mitad' | 'menos-mitad' | 'sin-precio'
+const standingOf = (paid: number, price: number): PaymentStanding => {
+  if (!price) return 'sin-precio'
+  if (paid >= price) return 'completo'
+  if (paid >= price / 2) return 'mitad'
+  return 'menos-mitad'
+}
 
 const initialPayments: Payment[] = [
-  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza' },
-  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet' },
-  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet' },
-  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza' },
+  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', carnet: '', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza' },
+  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', carnet: '', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet' },
+  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', carnet: '', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet' },
+  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', carnet: '', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza' },
 ]
 
 const initialExpenses: Expense[] = [
@@ -99,11 +109,14 @@ function App() {
   const [eventOptions, setEventOptions] = usePersistedState<string[]>('sec-car-events', initialEventOptions)
   const [categoryOptions, setCategoryOptions] = usePersistedState<string[]>('sec-car-categories', initialCategoryOptions)
   const [people, setPeople] = usePersistedState<Person[]>('sec-car-people', initialPeople)
+  const [eventPrices, setEventPrices] = usePersistedState<Record<string, number>>('sec-car-event-prices', {})
   const [theme, setTheme] = usePersistedState<'light' | 'dark'>('sec-car-theme', 'light')
 
   const [query, setQuery] = useState('')
   const [expenseQuery, setExpenseQuery] = useState('')
   const [newEventName, setNewEventName] = useState('')
+  const [peopleQuery, setPeopleQuery] = useState('')
+  const [eventPeopleQuery, setEventPeopleQuery] = useState('')
 
   const [showIncomeModal, setShowIncomeModal] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
@@ -112,12 +125,39 @@ function App() {
   const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null)
   const [selectedVoucher, setSelectedVoucher] = useState<Expense | null>(null)
 
-  const [incomeForm, setIncomeForm] = useState({ person: '', concept: '', cash: '', qr: '' })
+  const [incomeForm, setIncomeForm] = useState({ person: '', carnet: '', concept: '', cash: '', qr: '' })
   const [expenseForm, setExpenseForm] = useState({ concept: '', recipient: '', category: '', cash: '', qr: '' })
-  const [personForm, setPersonForm] = useState({ name: '', phone: '', notes: '' })
+  const [personForm, setPersonForm] = useState({ name: '', carnet: '', phone: '', notes: '' })
   const [confirmClear, setConfirmClear] = useState('')
+  const receiptPaperRef = useRef<HTMLDivElement | null>(null)
+  const voucherPaperRef = useRef<HTMLDivElement | null>(null)
+  const [sharingReceipt, setSharingReceipt] = useState(false)
 
-  const filteredPayments = useMemo(() => payments.filter((p) => `${p.person} ${p.concept} ${p.receipt}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
+  // Convierte el comprobante en imagen y lo comparte por WhatsApp (o lo descarga como respaldo)
+  const shareAsImage = async (node: HTMLDivElement | null, fileName: string, caption: string) => {
+    if (!node) return
+    setSharingReceipt(true)
+    try {
+      const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff' })
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'))
+      if (!blob) return
+      const file = new File([blob], fileName, { type: 'image/png' })
+      const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean; share?: (data: ShareData) => Promise<void> }
+      if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
+        await nav.share({ files: [file], title: caption, text: caption })
+      } else {
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url; link.download = fileName; link.click()
+        URL.revokeObjectURL(url)
+        window.open(`https://wa.me/?text=${encodeURIComponent(`${caption} (imagen descargada, adjúntala en WhatsApp)`)}`, '_blank')
+      }
+    } finally {
+      setSharingReceipt(false)
+    }
+  }
+
+  const filteredPayments = useMemo(() => payments.filter((p) => `${p.person} ${p.concept} ${p.receipt} ${p.carnet}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
   const filteredExpenses = useMemo(() => expenses.filter((e) => `${e.recipient} ${e.concept} ${e.category} ${e.voucher}`.toLowerCase().includes(expenseQuery.toLowerCase())), [expenses, expenseQuery])
 
   const activeIncome = payments.filter((p) => p.status === 'Aplicado')
@@ -138,27 +178,73 @@ function App() {
     return [...incomes, ...outs].sort((a, b) => b.date.localeCompare(a.date))
   }, [payments, expenses])
 
+  // Agrupa los pagos activos de un evento por persona (nombre en minúsculas)
+  const payersOfEvent = (eventName: string) => {
+    const related = activeIncome.filter((p) => p.concept === eventName)
+    const byPerson = new Map<string, { person: string; carnet: string; paid: number; count: number }>()
+    related.forEach((p) => {
+      const key = p.person.toLowerCase()
+      const entry = byPerson.get(key) || { person: p.person, carnet: p.carnet, paid: 0, count: 0 }
+      entry.paid += p.amount; entry.count += 1
+      if (p.carnet) entry.carnet = p.carnet
+      byPerson.set(key, entry)
+    })
+    return Array.from(byPerson.values())
+  }
+
   const eventStats = eventOptions.map((name) => {
     const related = payments.filter((p) => p.concept === name)
-    return { name, count: related.length, total: related.reduce((sum, p) => sum + p.amount, 0) }
+    const price = eventPrices[name] || 0
+    const payers = payersOfEvent(name)
+    const completo = payers.filter((entry) => standingOf(entry.paid, price) === 'completo').length
+    const mitad = payers.filter((entry) => standingOf(entry.paid, price) === 'mitad').length
+    const menosMitad = payers.filter((entry) => standingOf(entry.paid, price) === 'menos-mitad').length
+    return { name, count: related.length, total: related.reduce((sum, p) => sum + p.amount, 0), price, payers, completo, mitad, menosMitad }
   })
 
+  // Para cada persona, calcula lo pagado, adeudado y el detalle por evento
   const peopleWithTotals = people.map((person) => {
     const related = payments.filter((p) => p.person.toLowerCase() === person.name.toLowerCase() && p.status === 'Aplicado')
-    return { ...person, total: related.reduce((sum, p) => sum + p.amount, 0), count: related.length }
+    const total = related.reduce((sum, p) => sum + p.amount, 0)
+    const events = Array.from(new Set(related.map((p) => p.concept))).map((eventName) => {
+      const paid = related.filter((p) => p.concept === eventName).reduce((sum, p) => sum + p.amount, 0)
+      const price = eventPrices[eventName] || 0
+      return { event: eventName, paid, price, remaining: Math.max(price - paid, 0), standing: standingOf(paid, price) }
+    })
+    const totalDue = events.reduce((sum, ev) => sum + ev.remaining, 0)
+    return { ...person, total, count: related.length, events, totalDue, receipts: related }
   })
   const undirectoried = Array.from(new Set(payments.map((p) => p.person))).filter((name) => !people.some((person) => person.name.toLowerCase() === name.toLowerCase()))
+
+  const filteredPeople = useMemo(() => peopleWithTotals.filter((person) => `${person.name} ${person.carnet}`.toLowerCase().includes(peopleQuery.toLowerCase())), [peopleWithTotals, peopleQuery])
+
+  // Coincidencia por nombre o carnet, usada en el atajo de búsqueda de Ingresos
+  const findPersonMatch = (term: string) => {
+    const clean = term.trim().toLowerCase()
+    if (!clean) return null
+    return peopleWithTotals.find((person) => person.name.toLowerCase() === clean || (person.carnet && person.carnet.toLowerCase() === clean)) || null
+  }
+  const incomeLookup = useMemo(() => {
+    const byName = findPersonMatch(incomeForm.person)
+    const byCarnet = incomeForm.carnet ? findPersonMatch(incomeForm.carnet) : null
+    return byName || byCarnet
+  }, [incomeForm.person, incomeForm.carnet, peopleWithTotals])
 
   const saveIncome = () => {
     const cash = Number(incomeForm.cash) || 0
     const qr = Number(incomeForm.qr) || 0
     if (!incomeForm.person.trim() || !incomeForm.concept.trim() || (!cash && !qr)) return
     const concept = incomeForm.concept.trim()
-    const next: Payment = { id: crypto.randomUUID(), receipt: nextCode('REC', 242 + payments.length), person: incomeForm.person.trim(), concept, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado', issuedBy: loggedUser! }
+    const personName = incomeForm.person.trim()
+    const carnet = incomeForm.carnet.trim()
+    const next: Payment = { id: crypto.randomUUID(), receipt: nextCode('REC', 242 + payments.length), person: personName, carnet, concept, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado', issuedBy: loggedUser! }
     setPayments([next, ...payments])
     if (!eventOptions.includes(concept)) setEventOptions([...eventOptions, concept])
+    const existing = people.find((person) => person.name.toLowerCase() === personName.toLowerCase())
+    if (!existing) setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone: '', notes: '' }])
+    else if (carnet && !existing.carnet) setPeople(people.map((person) => person.id === existing.id ? { ...person, carnet } : person))
     setSelectedReceipt(next); setShowIncomeModal(false); setShowReceipt(true)
-    setIncomeForm({ person: '', concept: '', cash: '', qr: '' })
+    setIncomeForm({ person: '', carnet: '', concept: '', cash: '', qr: '' })
   }
 
   const saveExpense = () => {
@@ -178,20 +264,21 @@ function App() {
   const canManage = (owner?: Account['name']) => !owner || owner === loggedUser
   const addEventOption = () => { const name = newEventName.trim(); if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name]); setNewEventName('') }
   const removeEventOption = (name: string) => setEventOptions(eventOptions.filter((option) => option !== name))
+  const setEventPrice = (name: string, value: string) => setEventPrices({ ...eventPrices, [name]: Number(value) || 0 })
   const addPerson = () => {
     if (!personForm.name.trim()) return
-    setPeople([...people, { id: crypto.randomUUID(), name: personForm.name.trim(), phone: personForm.phone.trim(), notes: personForm.notes.trim() }])
-    setPersonForm({ name: '', phone: '', notes: '' })
+    setPeople([...people, { id: crypto.randomUUID(), name: personForm.name.trim(), carnet: personForm.carnet.trim(), phone: personForm.phone.trim(), notes: personForm.notes.trim() }])
+    setPersonForm({ name: '', carnet: '', phone: '', notes: '' })
   }
   const removePerson = (id: string) => setPeople(people.filter((person) => person.id !== id))
-  const registerPayer = (name: string) => setPeople([...people, { id: crypto.randomUUID(), name, phone: '', notes: '' }])
+  const registerPayer = (name: string) => setPeople([...people, { id: crypto.randomUUID(), name, carnet: '', phone: '', notes: '' }])
 
   const exportBackup = () => {
-    const header = ['Tipo', 'Codigo', 'Persona/Destinatario', 'Concepto', 'Categoria', 'Fecha', 'Monto', 'Efectivo', 'QR', 'Estado', 'Registrado por']
+    const header = ['Tipo', 'Codigo', 'Persona/Destinatario', 'Carnet', 'Concepto', 'Categoria', 'Fecha', 'Monto', 'Efectivo', 'QR', 'Estado', 'Registrado por']
     const rows = [
       header,
-      ...payments.map((p) => ['Ingreso', p.receipt, p.person, p.concept, '', p.date, p.amount, p.cash, p.qr, p.status, p.issuedBy || '']),
-      ...expenses.map((e) => ['Egreso', e.voucher, e.recipient, e.concept, e.category, e.date, e.amount, e.cash, e.qr, e.status, e.issuedBy || '']),
+      ...payments.map((p) => ['Ingreso', p.receipt, p.person, p.carnet || '', p.concept, '', p.date, p.amount, p.cash, p.qr, p.status, p.issuedBy || '']),
+      ...expenses.map((e) => ['Egreso', e.voucher, e.recipient, '', e.concept, e.category, e.date, e.amount, e.cash, e.qr, e.status, e.issuedBy || '']),
     ]
     const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
@@ -252,11 +339,12 @@ function App() {
 
       {activePage === 'Ingresos' && <section className="panel transactions">
         <div className="panel-head"><div><h3>Ingresos</h3><p>Todos los recibos emitidos</p></div><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div>
-        <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, concepto o recibo..." /></div></div>
-        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>PERSONA</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
+        <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, carnet, concepto o recibo..." /></div></div>
+        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>PERSONA</th><th>CARNET</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
           {filteredPayments.map((payment) => <tr key={payment.id}>
             <td><button className="receipt-link" onClick={() => { setSelectedReceipt(payment); setShowReceipt(true) }}>{payment.receipt}</button></td>
             <td className="person-cell"><span className="tiny-avatar">{payment.person[0]}</span>{payment.person}</td>
+            <td>{payment.carnet || '—'}</td>
             <td>{payment.concept}</td>
             <td>{formatDate(payment.date)}</td>
             <td>{money(payment.amount)}<span className="method">Efectivo {money(payment.cash)} · QR {money(payment.qr)}</span></td>
@@ -266,6 +354,7 @@ function App() {
           </tr>)}
         </tbody></table></div>
       </section>}
+
 
       {activePage === 'Egresos' && <section className="panel transactions">
         <div className="panel-head"><div><h3>Egresos</h3><p>Todos los pagos y gastos registrados</p></div><button className="primary-button" onClick={() => setShowExpenseModal(true)}><span>＋</span> Nuevo egreso</button></div>
@@ -291,25 +380,61 @@ function App() {
           <label>Nuevo evento o concepto<input value={newEventName} onChange={(event) => setNewEventName(event.target.value)} placeholder="Ej. Retiro de varones 2025" /></label>
           <button className="primary-button" onClick={addEventOption}>Agregar</button>
         </div>
-        <div className="chip-list">
-          {eventStats.map((stat) => <div className="chip" key={stat.name}><div><strong>{stat.name}</strong><small>{stat.count} recibos · {money(stat.total)}</small></div><button onClick={() => removeEventOption(stat.name)} aria-label={`Quitar ${stat.name}`}>×</button></div>)}
+        <div className="event-detail-list">
+          {eventStats.map((stat) => <div className="event-detail-card" key={stat.name}>
+            <div className="event-detail-head">
+              <div><strong>{stat.name}</strong><small>{stat.count} recibos · {money(stat.total)} recaudados</small></div>
+              <label className="price-field">Precio del evento (Bs)<input type="number" value={stat.price || ''} onChange={(event) => setEventPrice(stat.name, event.target.value)} placeholder="0.00" /></label>
+              <button onClick={() => removeEventOption(stat.name)} aria-label={`Quitar ${stat.name}`}>×</button>
+            </div>
+            {stat.price > 0 && <div className="event-progress-stats">
+              <span className="progress-pill complete">Pagaron el total: <b>{stat.completo}</b></span>
+              <span className="progress-pill half">Más de la mitad: <b>{stat.mitad}</b></span>
+              <span className="progress-pill low">Menos de la mitad: <b>{stat.menosMitad}</b></span>
+            </div>}
+            {stat.price === 0 && stat.payers.length > 0 && <p className="empty-hint">Define un precio para ver cuántos ya cancelaron el total.</p>}
+          </div>)}
         </div>
+        <div className="panel-head"><div><h3>Buscar persona en eventos</h3><p>Encuentra a alguien por nombre o número de carnet y revisa cuánto pagó y cuánto debe</p></div></div>
+        <div className="filters"><div className="search"><span>⌕</span><input value={eventPeopleQuery} onChange={(event) => setEventPeopleQuery(event.target.value)} placeholder="Buscar por nombre o carnet..." /></div></div>
+        {eventPeopleQuery.trim() && <div className="table-wrap"><table><thead><tr><th>PERSONA</th><th>CARNET</th><th>EVENTO</th><th>PAGADO</th><th>PRECIO</th><th>DEBE</th><th>ESTADO</th></tr></thead><tbody>
+          {eventStats.flatMap((stat) => stat.payers
+            .filter((entry) => `${entry.person} ${entry.carnet}`.toLowerCase().includes(eventPeopleQuery.toLowerCase()))
+            .map((entry) => {
+              const standing = standingOf(entry.paid, stat.price)
+              const remaining = Math.max(stat.price - entry.paid, 0)
+              return <tr key={`${stat.name}-${entry.person}`}>
+                <td className="person-cell"><span className="tiny-avatar">{entry.person[0]}</span>{entry.person}</td>
+                <td>{entry.carnet || '—'}</td>
+                <td>{stat.name}</td>
+                <td>{money(entry.paid)}</td>
+                <td>{stat.price ? money(stat.price) : 'Sin definir'}</td>
+                <td>{stat.price ? money(remaining) : '—'}</td>
+                <td><span className={`status ${standing === 'menos-mitad' ? 'void' : ''}`}>{standing === 'completo' ? 'Completo' : standing === 'mitad' ? 'Más de la mitad' : standing === 'menos-mitad' ? 'Menos de la mitad' : 'Sin precio'}</span></td>
+              </tr>
+            }))}
+        </tbody></table></div>}
       </section>}
 
+
       {activePage === 'Personas' && <section className="panel">
-        <div className="panel-head"><div><h3>Directorio de personas</h3><p>Contactos registrados y su historial de aportes</p></div></div>
+        <div className="panel-head"><div><h3>Directorio de personas</h3><p>Contactos registrados, cuánto han pagado y cuánto deben por evento</p></div></div>
         <div className="inline-form">
           <label>Nombre<input value={personForm.name} onChange={(event) => setPersonForm({ ...personForm, name: event.target.value })} placeholder="Nombre completo" /></label>
+          <label>N.º de carnet<input value={personForm.carnet} onChange={(event) => setPersonForm({ ...personForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
           <label>Teléfono<input value={personForm.phone} onChange={(event) => setPersonForm({ ...personForm, phone: event.target.value })} placeholder="Opcional" /></label>
           <label>Notas<input value={personForm.notes} onChange={(event) => setPersonForm({ ...personForm, notes: event.target.value })} placeholder="Opcional" /></label>
           <button className="primary-button" onClick={addPerson}>Agregar persona</button>
         </div>
-        <div className="table-wrap"><table><thead><tr><th>NOMBRE</th><th>TELÉFONO</th><th>NOTAS</th><th>TOTAL APORTADO</th><th></th></tr></thead><tbody>
-          {peopleWithTotals.map((person) => <tr key={person.id}>
+        <div className="filters"><div className="search"><span>⌕</span><input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Buscar por nombre o carnet..." /></div></div>
+        <div className="table-wrap"><table><thead><tr><th>NOMBRE</th><th>CARNET</th><th>TELÉFONO</th><th>TOTAL PAGADO</th><th>TOTAL ADEUDADO</th><th>DETALLE POR EVENTO</th><th></th></tr></thead><tbody>
+          {filteredPeople.map((person) => <tr key={person.id}>
             <td className="person-cell"><span className="tiny-avatar">{person.name[0]}</span>{person.name}</td>
+            <td>{person.carnet || '—'}</td>
             <td>{person.phone || '—'}</td>
-            <td>{person.notes || '—'}</td>
             <td>{money(person.total)}<span className="method">{person.count} recibos</span></td>
+            <td>{person.totalDue > 0 ? <b className="rose-text">{money(person.totalDue)}</b> : <span className="status">Al día</span>}</td>
+            <td>{person.events.length === 0 ? '—' : <div className="event-mini-list">{person.events.map((ev) => <span key={ev.event} className={`status ${ev.standing === 'menos-mitad' ? 'void' : ''}`}>{ev.event}: {ev.price ? `${money(ev.paid)} / ${money(ev.price)}` : money(ev.paid)}</span>)}</div>}</td>
             <td><button className="status-toggle" onClick={() => removePerson(person.id)}>Quitar</button></td>
           </tr>)}
         </tbody></table></div>
@@ -317,6 +442,7 @@ function App() {
           {undirectoried.map((name) => <div className="chip" key={name}><div><strong>{name}</strong><small>Ya tiene recibos, aún no está en el directorio</small></div><button onClick={() => registerPayer(name)} aria-label={`Agregar ${name}`}>＋</button></div>)}
         </div>}
       </section>}
+
 
       {activePage === 'Reportes' && <>
         <section className="stats-grid">
@@ -339,11 +465,26 @@ function App() {
     {showIncomeModal && <div className="modal-backdrop" onClick={() => setShowIncomeModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
       <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div><button className="close-button" onClick={() => setShowIncomeModal(false)}>×</button></div>
       <label>Nombre de la persona<input value={incomeForm.person} onChange={(event) => setIncomeForm({ ...incomeForm, person: event.target.value })} placeholder="Ej. Ana Lopez" /></label>
+      <label>N.º de carnet<input value={incomeForm.carnet} onChange={(event) => setIncomeForm({ ...incomeForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
+      {incomeLookup && <div className="lookup-card">
+        <div className="lookup-head"><strong>{incomeLookup.name}</strong>{incomeLookup.carnet && <span>Carnet {incomeLookup.carnet}</span>}</div>
+        <div className="lookup-stats">
+          <span>Pagado: <b>{money(incomeLookup.total)}</b></span>
+          <span>Veces que pagó: <b>{incomeLookup.count}</b></span>
+          <span>Debe: <b className={incomeLookup.totalDue > 0 ? 'rose-text' : ''}>{incomeLookup.totalDue > 0 ? money(incomeLookup.totalDue) : 'Al día'}</b></span>
+        </div>
+        {incomeLookup.events.length > 0 && <div className="event-mini-list">{incomeLookup.events.map((ev) => <span key={ev.event} className={`status ${ev.standing === 'menos-mitad' ? 'void' : ''}`}>{ev.event}: {ev.price ? `${money(ev.paid)} / ${money(ev.price)}` : money(ev.paid)}</span>)}</div>}
+        {incomeLookup.receipts.length > 0 && <div className="lookup-receipts">
+          <small>Comprobantes registrados:</small>
+          {incomeLookup.receipts.map((r) => <button key={r.id} className="receipt-link" onClick={() => { setSelectedReceipt(r); setShowReceipt(true) }}>{r.receipt} · {money(r.amount)}</button>)}
+        </div>}
+      </div>}
       <label>Evento o concepto<input list="event-suggestions" value={incomeForm.concept} onChange={(event) => setIncomeForm({ ...incomeForm, concept: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="event-suggestions">{eventOptions.map((option) => <option value={option} key={option} />)}</datalist></label>
       <div className="form-row"><label>Efectivo (Bs)<input type="number" value={incomeForm.cash} onChange={(event) => setIncomeForm({ ...incomeForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={incomeForm.qr} onChange={(event) => setIncomeForm({ ...incomeForm, qr: event.target.value })} placeholder="0.00" /></label></div>
       <div className="payment-note">Puedes combinar efectivo y QR en un mismo recibo. El concepto es libre; las sugerencias solo ayudan a escribir más rápido.</div>
       <button className="primary-button full" onClick={saveIncome}>Guardar y emitir recibo <span>→</span></button>
     </div></div>}
+
 
     {showExpenseModal && <div className="modal-backdrop" onClick={() => setShowExpenseModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
       <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Registrar egreso</h2></div><button className="close-button" onClick={() => setShowExpenseModal(false)}>×</button></div>
@@ -357,14 +498,20 @@ function App() {
 
     {showReceipt && selectedReceipt && <div className="modal-backdrop" onClick={() => setShowReceipt(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
       <div className="receipt-actions"><span>Vista previa del comprobante</span><button className="close-button" onClick={() => setShowReceipt(false)}>×</button></div>
-      <div className="receipt-paper"><div className="receipt-brand">SEC-CAR<small>Seminario de Educación Cristiana</small></div><div className="receipt-type">RECIBO DE PAGO <strong>{selectedReceipt.receipt}</strong></div><div className="receipt-line"><span>Recibí de:</span><b>{selectedReceipt.person}</b></div><div className="receipt-line"><span>Concepto:</span><b>{selectedReceipt.concept}</b></div><div className="receipt-line"><span>Fecha:</span><b>{formatDate(selectedReceipt.date)}</b></div><div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(selectedReceipt.amount)}</strong></div><div className="receipt-methods"><span>Efectivo {money(selectedReceipt.cash)}</span><span>QR {money(selectedReceipt.qr)}</span></div><div className="signature-row"><span>Firma del pagador</span><span>Firma administrador</span></div><div className="copy-mark">ORIGINAL <span>·</span> COPIA ADMINISTRACIÓN</div></div>
-      <button className="outline-button full" onClick={() => window.print()}>Imprimir original y copia <span>↗</span></button>
+      <div className="receipt-paper" ref={receiptPaperRef}><div className="receipt-brand">SEC-CAR<small>Seminario de Educación Cristiana</small></div><div className="receipt-type">RECIBO DE PAGO <strong>{selectedReceipt.receipt}</strong></div><div className="receipt-line"><span>Recibí de:</span><b>{selectedReceipt.person}</b></div>{selectedReceipt.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{selectedReceipt.carnet}</b></div>}<div className="receipt-line"><span>Concepto:</span><b>{selectedReceipt.concept}</b></div><div className="receipt-line"><span>Fecha:</span><b>{formatDate(selectedReceipt.date)}</b></div><div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(selectedReceipt.amount)}</strong></div><div className="receipt-methods"><span>Efectivo {money(selectedReceipt.cash)}</span><span>QR {money(selectedReceipt.qr)}</span></div><div className="signature-row"><span>Firma de quien paga</span><span>Firma de quien cobra</span></div><div className="copy-mark">ORIGINAL <span>·</span> COPIA ADMINISTRACIÓN</div></div>
+      <div className="receipt-actions-row">
+        <button className="outline-button full" onClick={() => window.print()}>Imprimir original y copia <span>↗</span></button>
+        <button className="primary-button full" disabled={sharingReceipt} onClick={() => shareAsImage(receiptPaperRef.current, `${selectedReceipt.receipt}.png`, `Recibo ${selectedReceipt.receipt} - ${selectedReceipt.person} - ${money(selectedReceipt.amount)}`)}>{sharingReceipt ? 'Generando imagen…' : 'Enviar por WhatsApp'} <span>↗</span></button>
+      </div>
     </div></div>}
 
     {showVoucher && selectedVoucher && <div className="modal-backdrop" onClick={() => setShowVoucher(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
       <div className="receipt-actions"><span>Vista previa del comprobante</span><button className="close-button" onClick={() => setShowVoucher(false)}>×</button></div>
-      <div className="receipt-paper"><div className="receipt-brand">SEC-CAR<small>Seminario de Educación Cristiana</small></div><div className="receipt-type">COMPROBANTE DE EGRESO <strong>{selectedVoucher.voucher}</strong></div><div className="receipt-line"><span>Pagado a:</span><b>{selectedVoucher.recipient}</b></div><div className="receipt-line"><span>Concepto:</span><b>{selectedVoucher.concept}</b></div><div className="receipt-line"><span>Categoría:</span><b>{selectedVoucher.category}</b></div><div className="receipt-line"><span>Fecha:</span><b>{formatDate(selectedVoucher.date)}</b></div><div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(selectedVoucher.amount)}</strong></div><div className="receipt-methods"><span>Efectivo {money(selectedVoucher.cash)}</span><span>QR {money(selectedVoucher.qr)}</span></div><div className="signature-row"><span>Firma del beneficiario</span><span>Firma administrador</span></div><div className="copy-mark">ORIGINAL <span>·</span> COPIA ADMINISTRACIÓN</div></div>
-      <button className="outline-button full" onClick={() => window.print()}>Imprimir original y copia <span>↗</span></button>
+      <div className="receipt-paper" ref={voucherPaperRef}><div className="receipt-brand">SEC-CAR<small>Seminario de Educación Cristiana</small></div><div className="receipt-type">COMPROBANTE DE EGRESO <strong>{selectedVoucher.voucher}</strong></div><div className="receipt-line"><span>Pagado a:</span><b>{selectedVoucher.recipient}</b></div><div className="receipt-line"><span>Concepto:</span><b>{selectedVoucher.concept}</b></div><div className="receipt-line"><span>Categoría:</span><b>{selectedVoucher.category}</b></div><div className="receipt-line"><span>Fecha:</span><b>{formatDate(selectedVoucher.date)}</b></div><div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(selectedVoucher.amount)}</strong></div><div className="receipt-methods"><span>Efectivo {money(selectedVoucher.cash)}</span><span>QR {money(selectedVoucher.qr)}</span></div><div className="signature-row"><span>Firma de quien recibe</span><span>Firma de quien paga</span></div><div className="copy-mark">ORIGINAL <span>·</span> COPIA ADMINISTRACIÓN</div></div>
+      <div className="receipt-actions-row">
+        <button className="outline-button full" onClick={() => window.print()}>Imprimir original y copia <span>↗</span></button>
+        <button className="primary-button full" disabled={sharingReceipt} onClick={() => shareAsImage(voucherPaperRef.current, `${selectedVoucher.voucher}.png`, `Comprobante ${selectedVoucher.voucher} - ${selectedVoucher.recipient} - ${money(selectedVoucher.amount)}`)}>{sharingReceipt ? 'Generando imagen…' : 'Enviar por WhatsApp'} <span>↗</span></button>
+      </div>
     </div></div>}
   </div>
 }

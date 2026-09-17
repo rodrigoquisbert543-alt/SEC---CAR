@@ -43,4 +43,31 @@
 .app-shell.dark .stat-card > strong { color: #eaf3ee; }
 .app-shell.dark .stat-card small, .app-shell.dark small.dark, .app-shell.dark .method, .app-shell.dark .inline-form label { color: #9fb0aa; }
 .app-shell.dark .stat-card small b.dark { color: #eaf3ee; }
+.event-detail-list { display: grid; gap: 12px; padding: 4px 22px 18px; }
+.event-detail-card { border: 1px solid #e4e9e7; border-radius: 6px; padding: 14px 16px; }
+.event-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.event-detail-head strong { color: #12472b; font-size: 13px; }
+.event-detail-head small { display: block; color: #99a3a1; font-size: 10px; margin-top: 3px; }
+.event-detail-head button { border: 0; background: #f2ede8; color: #b34c3a; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; flex-shrink: 0; }
+.price-field { color: #63736f; font-size: 10px; font-weight: 700; }
+.price-field input { display: block; margin-top: 5px; border: 1px solid #dfe6e3; border-radius: 4px; padding: 7px 9px; width: 140px; font-size: 11px; }
+.event-progress-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.progress-pill { border-radius: 20px; padding: 6px 12px; font-size: 10px; }
+.progress-pill.complete { background: #edf8f1; color: #1f6b3a; }
+.progress-pill.half { background: #fff3e0; color: #9d6816; }
+.progress-pill.low { background: #fdeceb; color: #b3463a; }
+.event-mini-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.event-mini-list .status { white-space: nowrap; }
+.lookup-card { background: #f7faf8; border: 1px solid #e1ece5; border-radius: 6px; padding: 12px 14px; margin: -6px 0 16px; }
+.lookup-head { display: flex; align-items: baseline; gap: 10px; color: #12472b; font-size: 13px; }
+.lookup-head span { color: #7c8b87; font-size: 10px; }
+.lookup-stats { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 11px; color: #4d5c58; }
+.lookup-receipts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.lookup-receipts small { color: #8a9793; font-size: 10px; width: 100%; }
+.receipt-actions-row { display: grid; gap: 10px; }
+.app-shell.dark .event-detail-card { border-color: #223530; }
+.app-shell.dark .event-detail-head strong { color: #eaf3ee; }
+.app-shell.dark .price-field input { background: #16211d; border-color: #223530; color: #cddad4; }
+.app-shell.dark .lookup-card { background: #16211d; border-color: #223530; }
+.app-shell.dark .lookup-head { color: #eaf3ee; }
 
