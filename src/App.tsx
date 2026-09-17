@@ -53,7 +53,7 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
     setPassword(''); setMessage(`Acceso de ${selected} reiniciado. Deberá crear una contraseña nueva al ingresar.`); setMode('login')
   }
 
-  return <div className="auth-shell"><div className="auth-panel"><div className="auth-brand"><div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Seminario de Educación Cristiana</span></div></div>
+  return <div className="auth-shell"><div className="auth-panel"><div className="auth-brand"><div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Seminario de Educación Cristiana Caranavi</span></div></div>
     <div className="auth-copy"><span className="eyebrow">ACCESO PRIVADO</span><h1>{mode === 'recovery' ? 'Recuperar acceso' : mode === 'first' ? 'Crea tu contraseña' : 'Bienvenido de nuevo'}</h1><p>{mode === 'recovery' ? 'El responsable puede reiniciar el acceso de una de las dos cuentas autorizadas.' : mode === 'first' ? `Es la primera vez que ingresa ${selected}. Define una contraseña personal para continuar.` : 'Ingresa con tu cuenta para registrar y consultar los movimientos del centro.'}</p></div>
     {mode !== 'recovery' && <><div className="user-picker"><span>¿Quién eres?</span><div>{(['Melitza Huanca', 'Ovet Zúñiga'] as const).map((name) => <button key={name} className={selected === name ? 'user-choice selected' : 'user-choice'} onClick={() => chooseUser(name)}><span className="auth-avatar">{name[0]}</span><span><strong>{name}</strong><small>{accounts.find((account) => account.name === name)?.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small></span>{selected === name && <b>✓</b>}</button>)}</div></div>{mode === 'first' && <label className="auth-label">Nombre y apellido<input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Huanca" /></label>}<label className="auth-label">{mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" /></label>{mode === 'first' && <label className="auth-label">Confirmar contraseña<input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseña" /></label>}<button className="auth-submit" onClick={() => current.needsPassword && mode === 'login' ? setMode('first') : submit()}>{current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span></button><button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button></>}
     {mode === 'recovery' && <><div className="recovery-card"><p>Selecciona la cuenta que necesita volver a configurarse.</p><div className="recovery-users">{(['Melitza Huanca', 'Ovet Zúñiga'] as const).map((name) => <button key={name} className={selected === name ? 'selected' : ''} onClick={() => setSelected(name)}>{name}<span>{selected === name ? 'Seleccionada' : 'Seleccionar'}</span></button>)}</div><label className="auth-label">Clave administrativa<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="La define el responsable" /></label><button className="auth-submit" onClick={resetAccess}>Reiniciar acceso de {selected} <span>↻</span></button></div><button className="auth-link" onClick={() => { setMode('login'); setPassword(''); setMessage('') }}>Volver al ingreso</button></>}
@@ -106,7 +106,7 @@ const initialExpenses: Expense[] = [
 const initialEventOptions = ['Campamento juvenil', 'Seminario de liderazgo', 'Retiro de damas 2024']
 const initialCategoryOptions = ['Servicios básicos', 'Mantenimiento', 'Materiales y suministros', 'Alimentación', 'Transporte', 'Honorarios', 'Otros']
 const initialPeople: Person[] = []
-const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Personas'] as const
+const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Clientes'] as const
 // Solo esta cuenta puede crear, editar precio o quitar eventos
 const eventManager: Account['name'] = 'Ovet Zúñiga'
 
@@ -183,21 +183,22 @@ function App() {
   // Una copia para el cliente y otra para el archivo administrativo, ambas completas para imprimir juntas
   const renderReceiptCopy = (payment: Payment, copy: 'cliente' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
     <div className="receipt-paper" ref={ref}>
-      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana</small></div>
+      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana Caranavi</small></div>
+      <div className="receipt-type">RECIBO DE PAGO <strong>{payment.receipt}</strong></div>
       <div className="receipt-line"><span>Recibí de:</span><b>{payment.person}</b></div>
       {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
       <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
       <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
-      <div className="signature-row"><div className="signature-col"><span className="signature-name">{payment.person}</span><span className="signature-role">INTERESADO</span></div><div className="signature-col"><span className="signature-name">{accountFullName(payment.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
+      <div className="signature-row">{copy === 'administración' && <div className="signature-col"><span className="signature-name">{payment.person}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(payment.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
       <div className="copy-mark">{copy === 'cliente' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
     </div>
   )
 
   const renderVoucherCopy = (expense: Expense, copy: 'beneficiario' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
     <div className="receipt-paper" ref={ref}>
-      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana</small></div>
+      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana Caranavi</small></div>
       <div className="receipt-type">COMPROBANTE DE EGRESO <strong>{expense.voucher}</strong></div>
       <div className="receipt-line"><span>Pagado a:</span><b>{expense.recipient}</b></div>
       <div className="receipt-line"><span>Concepto:</span><b>{expense.concept}</b></div>
@@ -205,7 +206,7 @@ function App() {
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(expense.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(expense.amount)}</strong></div>
       <div className="receipt-methods"><span>Efectivo {money(expense.cash)}</span><span>QR {money(expense.qr)}</span></div>
-      <div className="signature-row"><div className="signature-col"><span className="signature-name">{expense.recipient}</span><span className="signature-role">INTERESADO</span></div><div className="signature-col"><span className="signature-name">{accountFullName(expense.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
+      <div className="signature-row">{copy === 'administración' && <div className="signature-col"><span className="signature-name">{expense.recipient}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(expense.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
       <div className="copy-mark">{copy === 'beneficiario' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
     </div>
   )
@@ -267,7 +268,7 @@ function App() {
     const totalDue = events.reduce((sum, ev) => sum + ev.remaining, 0)
     return { ...person, total, count: related.length, events, totalDue, receipts: related }
   })
-  const undirectoried = Array.from(new Set(payments.map((p) => p.person))).filter((name) => !people.some((person) => person.name.toLowerCase() === name.toLowerCase()))
+  const undirectoried = Array.from(new Set(payments.map((p) => p.person))).filter((name) => !people.some((person) => person.name.toLowerCase() === name.toLowerCase())).map((name) => ({ name, carnet: payments.find((p) => p.person === name && p.carnet)?.carnet || '' }))
 
   const filteredPeople = useMemo(() => peopleWithTotals.filter((person) => `${person.name} ${person.carnet}`.toLowerCase().includes(peopleQuery.toLowerCase())), [peopleWithTotals, peopleQuery])
 
@@ -327,7 +328,7 @@ function App() {
     setPersonForm({ name: '', carnet: '', phone: '', notes: '' })
   }
   const removePerson = (id: string) => setPeople(people.filter((person) => person.id !== id))
-  const registerPayer = (name: string) => setPeople([...people, { id: crypto.randomUUID(), name, carnet: '', phone: '', notes: '' }])
+  const registerPayer = (name: string, carnet: string) => setPeople([...people, { id: crypto.randomUUID(), name, carnet, phone: '', notes: '' }])
 
   const exportBackup = () => {
     const header = ['Tipo', 'Codigo', 'Persona/Destinatario', 'Carnet', 'Concepto', 'Categoria', 'Fecha', 'Monto', 'Efectivo', 'QR', 'Estado', 'Registrado por']
@@ -362,7 +363,7 @@ function App() {
       </div>
     </aside>
     <main className="main-content">
-      <header className="topbar"><div><span className="eyebrow">SEMINARIO DE EDUCACIÓN CRISTIANA</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div><div className="top-actions"><button className="icon-button" aria-label="Cambiar tema" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☀' : '☾'}</button><button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button><div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div></div></header>
+      <header className="topbar"><div><span className="eyebrow">Seminario de Educación Cristiana Caranavi</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div><div className="top-actions"><button className="icon-button" aria-label="Cambiar tema" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☀' : '☾'}</button><button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button><div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div></div></header>
 
       {activePage === 'Resumen' && <>
         <section className="hero-row"><div><h2>Buenos días, {loggedUser} <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div><div className="hero-actions"><button className="outline-button" onClick={() => setShowExpenseModal(true)}><span>−</span> Nuevo egreso</button><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div></section>
@@ -396,7 +397,7 @@ function App() {
       {activePage === 'Ingresos' && <section className="panel transactions">
         <div className="panel-head"><div><h3>Ingresos</h3><p>Todos los recibos emitidos</p></div><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div>
         <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, carnet, concepto o recibo..." /></div></div>
-        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>PERSONA</th><th>CARNET</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
+        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>CLIENTE</th><th>CARNET</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
           {filteredPayments.map((payment) => <tr key={payment.id}>
             <td><button className="receipt-link" onClick={() => { setSelectedReceipt(payment); setShowReceipt(true) }}>{payment.receipt}</button></td>
             <td className="person-cell"><span className="tiny-avatar">{payment.person[0]}</span>{payment.person}</td>
@@ -451,9 +452,9 @@ function App() {
             {stat.price === 0 && stat.payers.length > 0 && <p className="empty-hint">Define un precio para ver cuántos ya cancelaron el total.</p>}
           </div>)}
         </div>
-        <div className="panel-head"><div><h3>Buscar persona en eventos</h3><p>Encuentra a alguien por nombre o número de carnet y revisa cuánto pagó y cuánto debe</p></div></div>
+        <div className="panel-head"><div><h3>Buscar cliente en eventos</h3><p>Encuentra a alguien por nombre o número de carnet y revisa cuánto pagó y cuánto debe</p></div></div>
         <div className="filters"><div className="search"><span>⌕</span><input value={eventPeopleQuery} onChange={(event) => setEventPeopleQuery(event.target.value)} placeholder="Buscar por nombre o carnet..." /></div></div>
-        {eventPeopleQuery.trim() && <div className="table-wrap"><table><thead><tr><th>PERSONA</th><th>CARNET</th><th>EVENTO</th><th>PAGADO</th><th>PRECIO</th><th>DEBE</th><th>ESTADO</th></tr></thead><tbody>
+        {eventPeopleQuery.trim() && <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>CARNET</th><th>EVENTO</th><th>PAGADO</th><th>PRECIO</th><th>DEBE</th><th>ESTADO</th></tr></thead><tbody>
           {eventStats.flatMap((stat) => stat.payers
             .filter((entry) => `${entry.person} ${entry.carnet}`.toLowerCase().includes(eventPeopleQuery.toLowerCase()))
             .map((entry) => {
@@ -473,14 +474,14 @@ function App() {
       </section>}
 
 
-      {activePage === 'Personas' && <section className="panel">
-        <div className="panel-head"><div><h3>Directorio de personas</h3><p>Contactos registrados, cuánto han pagado y cuánto deben por evento</p></div></div>
+      {activePage === 'Clientes' && <section className="panel">
+        <div className="panel-head"><div><h3>Directorio de clientes</h3><p>Clientes registrados, cuánto han pagado y cuánto deben por evento</p></div></div>
         <div className="inline-form">
           <label>Nombre<input value={personForm.name} onChange={(event) => setPersonForm({ ...personForm, name: event.target.value })} placeholder="Nombre completo" /></label>
           <label>N.º de carnet<input value={personForm.carnet} onChange={(event) => setPersonForm({ ...personForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
           <label>Teléfono<input value={personForm.phone} onChange={(event) => setPersonForm({ ...personForm, phone: event.target.value })} placeholder="Opcional" /></label>
           <label>Notas<input value={personForm.notes} onChange={(event) => setPersonForm({ ...personForm, notes: event.target.value })} placeholder="Opcional" /></label>
-          <button className="primary-button" onClick={addPerson}>Agregar persona</button>
+          <button className="primary-button" onClick={addPerson}>Agregar cliente</button>
         </div>
         <div className="filters"><div className="search"><span>⌕</span><input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Buscar por nombre o carnet..." /></div></div>
         <div className="table-wrap"><table><thead><tr><th>NOMBRE</th><th>CARNET</th><th>TELÉFONO</th><th>TOTAL PAGADO</th><th>TOTAL ADEUDADO</th><th>DETALLE POR EVENTO</th><th></th></tr></thead><tbody>
@@ -495,7 +496,7 @@ function App() {
           </tr>)}
         </tbody></table></div>
         {undirectoried.length > 0 && <div className="chip-list">
-          {undirectoried.map((name) => <div className="chip" key={name}><div><strong>{name}</strong><small>Ya tiene recibos, aún no está en el directorio</small></div><button onClick={() => registerPayer(name)} aria-label={`Agregar ${name}`}>＋</button></div>)}
+          {undirectoried.map((entry) => <div className="chip" key={entry.name}><div><strong>{entry.name}</strong><small>{entry.carnet ? `Carnet ${entry.carnet} · ` : ''}Ya tiene recibos, aún no está en el directorio</small></div><button onClick={() => registerPayer(entry.name, entry.carnet)} aria-label={`Agregar ${entry.name}`}>＋</button></div>)}
         </div>}
       </section>}
 
@@ -527,8 +528,8 @@ function App() {
 
     {showIncomeModal && <div className="modal-backdrop" onClick={() => setShowIncomeModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
       <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div><button className="close-button" onClick={() => setShowIncomeModal(false)}>×</button></div>
-      <label>Nombre de la persona<input value={incomeForm.person} onChange={(event) => setIncomeForm({ ...incomeForm, person: event.target.value })} placeholder="Ej. Ana Lopez" /></label>
-      <label>N.º de carnet<input value={incomeForm.carnet} onChange={(event) => setIncomeForm({ ...incomeForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
+      <label>Nombre de la persona<input list="client-name-suggestions" value={incomeForm.person} onChange={(event) => setIncomeForm({ ...incomeForm, person: event.target.value })} placeholder="Ej. Ana Lopez" /><datalist id="client-name-suggestions">{people.map((person) => <option value={person.name} key={person.id} />)}</datalist></label>
+      <label>N.º de carnet<input list="client-carnet-suggestions" value={incomeForm.carnet} onChange={(event) => setIncomeForm({ ...incomeForm, carnet: event.target.value })} placeholder="Ej. 7845123" /><datalist id="client-carnet-suggestions">{people.filter((person) => person.carnet).map((person) => <option value={person.carnet} key={person.id} />)}</datalist></label>
       {incomeLookup && <div className="lookup-card">
         <div className="lookup-head"><strong>{incomeLookup.name}</strong>{incomeLookup.carnet && <span>Carnet {incomeLookup.carnet}</span>}</div>
         <div className="lookup-stats">
