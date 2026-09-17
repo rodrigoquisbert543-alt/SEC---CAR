@@ -358,7 +358,7 @@ function App() {
       <button className={activePage === 'Reportes' ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage('Reportes')}><span className="nav-icon">▤</span>Reportes</button>
       <div className="sidebar-bottom">
         <div className="sync"><span className="sync-dot"></span><div><strong>Sincronizado</strong><small>Todos los cambios guardados</small></div></div>
-        <div className="profile"><div className="avatar">{loggedUser[0]}</div><div><strong>{loggedUser}</strong><small>Administrador</small></div><span>•••</span></div>
+        <div className="profile"><div className="avatar">{loggedUser[0]}</div><div><strong>{loggedUser}</strong><small>Administrador</small></div><button className="logout-button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={() => setLoggedUser(null)}>⏻</button></div>
       </div>
     </aside>
     <main className="main-content">
