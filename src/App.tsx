@@ -78,7 +78,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 const money = (value: number) => `Bs ${value.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`
 const nextCode = (prefix: string, count: number) => `${prefix}-${String(count).padStart(5, '0')}`
 
-type Payment = { id: string; receipt: string; person: string; carnet: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
+type Payment = { id: string; receipt: string; person: string; carnet: string; phone: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
 type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
 type Person = { id: string; name: string; carnet: string; phone: string; notes: string }
 
@@ -92,10 +92,10 @@ const standingOf = (paid: number, price: number): PaymentStanding => {
 }
 
 const initialPayments: Payment[] = [
-  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', carnet: '', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
-  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', carnet: '', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
-  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', carnet: '', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
-  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', carnet: '', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
+  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', carnet: '', phone: '', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
+  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', carnet: '', phone: '', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
+  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', carnet: '', phone: '', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
+  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', carnet: '', phone: '', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
 ]
 
 const initialExpenses: Expense[] = [
@@ -137,7 +137,7 @@ function App() {
   const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null)
   const [selectedVoucher, setSelectedVoucher] = useState<Expense | null>(null)
 
-  const [incomeForm, setIncomeForm] = useState({ person: '', carnet: '', concept: '', cash: '', qr: '' })
+  const [incomeForm, setIncomeForm] = useState({ person: '', carnet: '', phone: '', concept: '', cash: '', qr: '' })
   const [expenseForm, setExpenseForm] = useState({ concept: '', recipient: '', category: '', cash: '', qr: '' })
   const [personForm, setPersonForm] = useState({ name: '', carnet: '', phone: '', notes: '' })
   const [confirmClear, setConfirmClear] = useState('')
@@ -187,6 +187,7 @@ function App() {
       <div className="receipt-type">RECIBO DE PAGO <strong>{payment.receipt}</strong></div>
       <div className="receipt-line"><span>Recibí de:</span><b>{payment.person}</b></div>
       {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
+      {payment.phone && <div className="receipt-line"><span>Teléfono:</span><b>{payment.phone}</b></div>}
       <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
@@ -211,7 +212,7 @@ function App() {
     </div>
   )
 
-  const filteredPayments = useMemo(() => payments.filter((p) => `${p.person} ${p.concept} ${p.receipt} ${p.carnet}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
+  const filteredPayments = useMemo(() => payments.filter((p) => `${p.person} ${p.concept} ${p.receipt} ${p.carnet} ${p.phone}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
   const filteredExpenses = useMemo(() => expenses.filter((e) => `${e.recipient} ${e.concept} ${e.category} ${e.voucher}`.toLowerCase().includes(expenseQuery.toLowerCase())), [expenses, expenseQuery])
 
   const activeIncome = payments.filter((p) => p.status === 'Aplicado')
@@ -235,12 +236,13 @@ function App() {
   // Agrupa los pagos activos de un evento por persona (nombre en minúsculas)
   const payersOfEvent = (eventName: string) => {
     const related = activeIncome.filter((p) => p.concept === eventName)
-    const byPerson = new Map<string, { person: string; carnet: string; paid: number; count: number }>()
+    const byPerson = new Map<string, { person: string; carnet: string; phone: string; paid: number; count: number }>()
     related.forEach((p) => {
       const key = p.person.toLowerCase()
-      const entry = byPerson.get(key) || { person: p.person, carnet: p.carnet, paid: 0, count: 0 }
+      const entry = byPerson.get(key) || { person: p.person, carnet: p.carnet, phone: p.phone, paid: 0, count: 0 }
       entry.paid += p.amount; entry.count += 1
       if (p.carnet) entry.carnet = p.carnet
+      if (p.phone) entry.phone = p.phone
       byPerson.set(key, entry)
     })
     return Array.from(byPerson.values())
@@ -268,21 +270,22 @@ function App() {
     const totalDue = events.reduce((sum, ev) => sum + ev.remaining, 0)
     return { ...person, total, count: related.length, events, totalDue, receipts: related }
   })
-  const undirectoried = Array.from(new Set(payments.map((p) => p.person))).filter((name) => !people.some((person) => person.name.toLowerCase() === name.toLowerCase())).map((name) => ({ name, carnet: payments.find((p) => p.person === name && p.carnet)?.carnet || '' }))
+  const undirectoried = Array.from(new Set(payments.map((p) => p.person))).filter((name) => !people.some((person) => person.name.toLowerCase() === name.toLowerCase())).map((name) => ({ name, carnet: payments.find((p) => p.person === name && p.carnet)?.carnet || '', phone: payments.find((p) => p.person === name && p.phone)?.phone || '' }))
 
-  const filteredPeople = useMemo(() => peopleWithTotals.filter((person) => `${person.name} ${person.carnet}`.toLowerCase().includes(peopleQuery.toLowerCase())), [peopleWithTotals, peopleQuery])
+  const filteredPeople = useMemo(() => peopleWithTotals.filter((person) => `${person.name} ${person.carnet} ${person.phone}`.toLowerCase().includes(peopleQuery.toLowerCase())), [peopleWithTotals, peopleQuery])
 
-  // Coincidencia por nombre o carnet, usada en el atajo de búsqueda de Ingresos
+  // Coincidencia por nombre, carnet o teléfono, usada en el atajo de búsqueda de Ingresos
   const findPersonMatch = (term: string) => {
     const clean = term.trim().toLowerCase()
     if (!clean) return null
-    return peopleWithTotals.find((person) => person.name.toLowerCase() === clean || (person.carnet && person.carnet.toLowerCase() === clean)) || null
+    return peopleWithTotals.find((person) => person.name.toLowerCase() === clean || (person.carnet && person.carnet.toLowerCase() === clean) || (person.phone && person.phone.toLowerCase() === clean)) || null
   }
   const incomeLookup = useMemo(() => {
     const byName = findPersonMatch(incomeForm.person)
     const byCarnet = incomeForm.carnet ? findPersonMatch(incomeForm.carnet) : null
-    return byName || byCarnet
-  }, [incomeForm.person, incomeForm.carnet, peopleWithTotals])
+    const byPhone = incomeForm.phone ? findPersonMatch(incomeForm.phone) : null
+    return byName || byCarnet || byPhone
+  }, [incomeForm.person, incomeForm.carnet, incomeForm.phone, peopleWithTotals])
 
   const saveIncome = () => {
     const cash = Number(incomeForm.cash) || 0
@@ -291,14 +294,15 @@ function App() {
     const concept = incomeForm.concept.trim()
     const personName = incomeForm.person.trim()
     const carnet = incomeForm.carnet.trim()
-    const next: Payment = { id: crypto.randomUUID(), receipt: nextCode('REC', 242 + payments.length), person: personName, carnet, concept, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado', issuedBy: loggedUser! }
+    const phone = incomeForm.phone.trim()
+    const next: Payment = { id: crypto.randomUUID(), receipt: nextCode('REC', 242 + payments.length), person: personName, carnet, phone, concept, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado', issuedBy: loggedUser! }
     setPayments([next, ...payments])
     if (loggedUser === eventManager && !eventOptions.includes(concept)) setEventOptions([...eventOptions, concept])
     const existing = people.find((person) => person.name.toLowerCase() === personName.toLowerCase())
-    if (!existing) setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone: '', notes: '' }])
-    else if (carnet && !existing.carnet) setPeople(people.map((person) => person.id === existing.id ? { ...person, carnet } : person))
+    if (!existing) setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone, notes: '' }])
+    else setPeople(people.map((person) => person.id === existing.id ? { ...person, carnet: carnet && !person.carnet ? carnet : person.carnet, phone: phone && !person.phone ? phone : person.phone } : person))
     setSelectedReceipt(next); setShowIncomeModal(false); setShowReceipt(true)
-    setIncomeForm({ person: '', carnet: '', concept: '', cash: '', qr: '' })
+    setIncomeForm({ person: '', carnet: '', phone: '', concept: '', cash: '', qr: '' })
   }
 
   const saveExpense = () => {
@@ -328,14 +332,14 @@ function App() {
     setPersonForm({ name: '', carnet: '', phone: '', notes: '' })
   }
   const removePerson = (id: string) => setPeople(people.filter((person) => person.id !== id))
-  const registerPayer = (name: string, carnet: string) => setPeople([...people, { id: crypto.randomUUID(), name, carnet, phone: '', notes: '' }])
+  const registerPayer = (name: string, carnet: string, phone: string) => setPeople([...people, { id: crypto.randomUUID(), name, carnet, phone, notes: '' }])
 
   const exportBackup = () => {
-    const header = ['Tipo', 'Codigo', 'Persona/Destinatario', 'Carnet', 'Concepto', 'Categoria', 'Fecha', 'Monto', 'Efectivo', 'QR', 'Estado', 'Registrado por']
+    const header = ['Tipo', 'Codigo', 'Persona/Destinatario', 'Carnet', 'Telefono', 'Concepto', 'Categoria', 'Fecha', 'Monto', 'Efectivo', 'QR', 'Estado', 'Registrado por']
     const rows = [
       header,
-      ...payments.map((p) => ['Ingreso', p.receipt, p.person, p.carnet || '', p.concept, '', p.date, p.amount, p.cash, p.qr, p.status, p.issuedBy || '']),
-      ...expenses.map((e) => ['Egreso', e.voucher, e.recipient, '', e.concept, e.category, e.date, e.amount, e.cash, e.qr, e.status, e.issuedBy || '']),
+      ...payments.map((p) => ['Ingreso', p.receipt, p.person, p.carnet || '', p.phone || '', p.concept, '', p.date, p.amount, p.cash, p.qr, p.status, p.issuedBy || '']),
+      ...expenses.map((e) => ['Egreso', e.voucher, e.recipient, '', '', e.concept, e.category, e.date, e.amount, e.cash, e.qr, e.status, e.issuedBy || '']),
     ]
     const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
@@ -396,12 +400,13 @@ function App() {
 
       {activePage === 'Ingresos' && <section className="panel transactions">
         <div className="panel-head"><div><h3>Ingresos</h3><p>Todos los recibos emitidos</p></div><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div>
-        <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, carnet, concepto o recibo..." /></div></div>
-        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>CLIENTE</th><th>CARNET</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
+        <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, carnet, teléfono, concepto o recibo..." /></div></div>
+        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
           {filteredPayments.map((payment) => <tr key={payment.id}>
             <td><button className="receipt-link" onClick={() => { setSelectedReceipt(payment); setShowReceipt(true) }}>{payment.receipt}</button></td>
             <td className="person-cell"><span className="tiny-avatar">{payment.person[0]}</span>{payment.person}</td>
             <td>{payment.carnet || '—'}</td>
+            <td>{payment.phone || '—'}</td>
             <td>{payment.concept}</td>
             <td>{formatDate(payment.date)}</td>
             <td>{money(payment.amount)}<span className="method">Efectivo {money(payment.cash)} · QR {money(payment.qr)}</span></td>
@@ -452,17 +457,18 @@ function App() {
             {stat.price === 0 && stat.payers.length > 0 && <p className="empty-hint">Define un precio para ver cuántos ya cancelaron el total.</p>}
           </div>)}
         </div>
-        <div className="panel-head"><div><h3>Buscar cliente en eventos</h3><p>Encuentra a alguien por nombre o número de carnet y revisa cuánto pagó y cuánto debe</p></div></div>
-        <div className="filters"><div className="search"><span>⌕</span><input value={eventPeopleQuery} onChange={(event) => setEventPeopleQuery(event.target.value)} placeholder="Buscar por nombre o carnet..." /></div></div>
-        {eventPeopleQuery.trim() && <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>CARNET</th><th>EVENTO</th><th>PAGADO</th><th>PRECIO</th><th>DEBE</th><th>ESTADO</th></tr></thead><tbody>
+        <div className="panel-head"><div><h3>Buscar cliente en eventos</h3><p>Encuentra a alguien por nombre, carnet o teléfono y revisa cuánto pagó y cuánto debe</p></div></div>
+        <div className="filters"><div className="search"><span>⌕</span><input value={eventPeopleQuery} onChange={(event) => setEventPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
+        {eventPeopleQuery.trim() && <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>EVENTO</th><th>PAGADO</th><th>PRECIO</th><th>DEBE</th><th>ESTADO</th></tr></thead><tbody>
           {eventStats.flatMap((stat) => stat.payers
-            .filter((entry) => `${entry.person} ${entry.carnet}`.toLowerCase().includes(eventPeopleQuery.toLowerCase()))
+            .filter((entry) => `${entry.person} ${entry.carnet} ${entry.phone}`.toLowerCase().includes(eventPeopleQuery.toLowerCase()))
             .map((entry) => {
               const standing = standingOf(entry.paid, stat.price)
               const remaining = Math.max(stat.price - entry.paid, 0)
               return <tr key={`${stat.name}-${entry.person}`}>
                 <td className="person-cell"><span className="tiny-avatar">{entry.person[0]}</span>{entry.person}</td>
                 <td>{entry.carnet || '—'}</td>
+                <td>{entry.phone || '—'}</td>
                 <td>{stat.name}</td>
                 <td>{money(entry.paid)}</td>
                 <td>{stat.price ? money(stat.price) : 'Sin definir'}</td>
@@ -496,7 +502,7 @@ function App() {
           </tr>)}
         </tbody></table></div>
         {undirectoried.length > 0 && <div className="chip-list">
-          {undirectoried.map((entry) => <div className="chip" key={entry.name}><div><strong>{entry.name}</strong><small>{entry.carnet ? `Carnet ${entry.carnet} · ` : ''}Ya tiene recibos, aún no está en el directorio</small></div><button onClick={() => registerPayer(entry.name, entry.carnet)} aria-label={`Agregar ${entry.name}`}>＋</button></div>)}
+          {undirectoried.map((entry) => <div className="chip" key={entry.name}><div><strong>{entry.name}</strong><small>{[entry.carnet && `Carnet ${entry.carnet}`, entry.phone && `Tel. ${entry.phone}`].filter(Boolean).join(' · ')}{(entry.carnet || entry.phone) ? ' · ' : ''}Ya tiene recibos, aún no está en el directorio</small></div><button onClick={() => registerPayer(entry.name, entry.carnet, entry.phone)} aria-label={`Agregar ${entry.name}`}>＋</button></div>)}
         </div>}
       </section>}
 
@@ -530,8 +536,9 @@ function App() {
       <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div><button className="close-button" onClick={() => setShowIncomeModal(false)}>×</button></div>
       <label>Nombre de la persona<input list="client-name-suggestions" value={incomeForm.person} onChange={(event) => setIncomeForm({ ...incomeForm, person: event.target.value })} placeholder="Ej. Ana Lopez" /><datalist id="client-name-suggestions">{people.map((person) => <option value={person.name} key={person.id} />)}</datalist></label>
       <label>N.º de carnet<input list="client-carnet-suggestions" value={incomeForm.carnet} onChange={(event) => setIncomeForm({ ...incomeForm, carnet: event.target.value })} placeholder="Ej. 7845123" /><datalist id="client-carnet-suggestions">{people.filter((person) => person.carnet).map((person) => <option value={person.carnet} key={person.id} />)}</datalist></label>
+      <label>Teléfono<input list="client-phone-suggestions" value={incomeForm.phone} onChange={(event) => setIncomeForm({ ...incomeForm, phone: event.target.value })} placeholder="Ej. 71234567" /><datalist id="client-phone-suggestions">{people.filter((person) => person.phone).map((person) => <option value={person.phone} key={person.id} />)}</datalist></label>
       {incomeLookup && <div className="lookup-card">
-        <div className="lookup-head"><strong>{incomeLookup.name}</strong>{incomeLookup.carnet && <span>Carnet {incomeLookup.carnet}</span>}</div>
+        <div className="lookup-head"><strong>{incomeLookup.name}</strong>{incomeLookup.carnet && <span>Carnet {incomeLookup.carnet}</span>}{incomeLookup.phone && <span>Tel. {incomeLookup.phone}</span>}</div>
         <div className="lookup-stats">
           <span>Pagado: <b>{money(incomeLookup.total)}</b></span>
           <span>Veces que pagó: <b>{incomeLookup.count}</b></span>
