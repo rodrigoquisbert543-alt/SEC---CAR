@@ -182,20 +182,20 @@ function App() {
 
   // Una copia para el cliente y otra para el archivo administrativo, ambas completas para imprimir juntas
   const renderReceiptCopy = (payment: Payment, copy: 'cliente' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
-    <div className="receipt-paper" ref={ref}>
-      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana Caranavi</small></div>
-      <div className="receipt-type">RECIBO DE PAGO <strong>{payment.receipt}</strong></div>
-      <div className="receipt-line"><span>Recibí de:</span><b>{payment.person}</b></div>
-      {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
-      {payment.phone && <div className="receipt-line"><span>Teléfono:</span><b>{payment.phone}</b></div>}
-      <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
-      <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
-      <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
-      <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
-      <div className="signature-row">{copy === 'administración' && <div className="signature-col"><span className="signature-name">{payment.person}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(payment.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
-      <div className="copy-mark">{copy === 'cliente' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
-    </div>
-  )
+  <div className="receipt-paper" ref={ref}>
+    <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana Caranavi</small></div>
+    <div className="receipt-type">RECIBO DE PAGO <strong>{payment.receipt}</strong></div>
+    <div className="receipt-line"><span>Recibí de:</span><b>{payment.person}</b></div>
+    {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
+    {payment.phone && <div className="receipt-line"><span>N.º de celular:</span><b>{payment.phone}</b></div>}
+    <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
+    <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
+    <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
+    <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
+    <div className="signature-row">{copy === 'administración' && <div className="signature-col"><span className="signature-name">{payment.person}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(payment.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
+    <div className="copy-mark">{copy === 'cliente' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
+  </div>
+)
 
   const renderVoucherCopy = (expense: Expense, copy: 'beneficiario' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
     <div className="receipt-paper" ref={ref}>
