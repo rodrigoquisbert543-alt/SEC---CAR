@@ -287,6 +287,21 @@ function App() {
     return byName || byCarnet || byPhone
   }, [incomeForm.person, incomeForm.carnet, incomeForm.phone, peopleWithTotals])
 
+  // Al elegir un nombre/carnet/teléfono que coincide exacto con un cliente ya guardado, completa el resto de sus datos
+  const fillIncomeField = (field: 'person' | 'carnet' | 'phone', value: string) => {
+    const match = findPersonMatch(value)
+    setIncomeForm((prev) => {
+      if (!match) return { ...prev, [field]: value }
+      return { ...prev, person: match.name, carnet: match.carnet || prev.carnet, phone: match.phone || prev.phone, [field]: value }
+    })
+  }
+  // Solo muestra sugerencias una vez que el usuario empieza a escribir, no al hacer clic en un campo vacío
+  const suggestionsFor = (value: string, options: string[]) => {
+    const clean = value.trim().toLowerCase()
+    if (!clean) return []
+    return options.filter((option) => option.toLowerCase().includes(clean))
+  }
+
   const saveIncome = () => {
     const cash = Number(incomeForm.cash) || 0
     const qr = Number(incomeForm.qr) || 0
@@ -534,9 +549,9 @@ function App() {
 
     {showIncomeModal && <div className="modal-backdrop" onClick={() => setShowIncomeModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
       <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div><button className="close-button" onClick={() => setShowIncomeModal(false)}>×</button></div>
-      <label>Nombre de la persona<input list="client-name-suggestions" value={incomeForm.person} onChange={(event) => setIncomeForm({ ...incomeForm, person: event.target.value })} placeholder="Ej. Ana Lopez" /><datalist id="client-name-suggestions">{people.map((person) => <option value={person.name} key={person.id} />)}</datalist></label>
-      <label>N.º de carnet<input list="client-carnet-suggestions" value={incomeForm.carnet} onChange={(event) => setIncomeForm({ ...incomeForm, carnet: event.target.value })} placeholder="Ej. 7845123" /><datalist id="client-carnet-suggestions">{people.filter((person) => person.carnet).map((person) => <option value={person.carnet} key={person.id} />)}</datalist></label>
-      <label>Teléfono<input list="client-phone-suggestions" value={incomeForm.phone} onChange={(event) => setIncomeForm({ ...incomeForm, phone: event.target.value })} placeholder="Ej. 71234567" /><datalist id="client-phone-suggestions">{people.filter((person) => person.phone).map((person) => <option value={person.phone} key={person.id} />)}</datalist></label>
+      <label>Nombre de la persona<input list="client-name-suggestions" value={incomeForm.person} onChange={(event) => fillIncomeField('person', event.target.value)} placeholder="Ej. Ana Lopez" /><datalist id="client-name-suggestions">{suggestionsFor(incomeForm.person, people.map((person) => person.name)).map((name) => <option value={name} key={name} />)}</datalist></label>
+      <label>N.º de carnet<input list="client-carnet-suggestions" value={incomeForm.carnet} onChange={(event) => fillIncomeField('carnet', event.target.value)} placeholder="Ej. 7845123" /><datalist id="client-carnet-suggestions">{suggestionsFor(incomeForm.carnet, people.filter((person) => person.carnet).map((person) => person.carnet)).map((carnet) => <option value={carnet} key={carnet} />)}</datalist></label>
+      <label>Teléfono<input list="client-phone-suggestions" value={incomeForm.phone} onChange={(event) => fillIncomeField('phone', event.target.value)} placeholder="Ej. 71234567" /><datalist id="client-phone-suggestions">{suggestionsFor(incomeForm.phone, people.filter((person) => person.phone).map((person) => person.phone)).map((phone) => <option value={phone} key={phone} />)}</datalist></label>
       {incomeLookup && <div className="lookup-card">
         <div className="lookup-head"><strong>{incomeLookup.name}</strong>{incomeLookup.carnet && <span>Carnet {incomeLookup.carnet}</span>}{incomeLookup.phone && <span>Tel. {incomeLookup.phone}</span>}</div>
         <div className="lookup-stats">
@@ -550,7 +565,7 @@ function App() {
           {incomeLookup.receipts.map((r) => <button key={r.id} className="receipt-link" onClick={() => { setSelectedReceipt(r); setShowReceipt(true) }}>{r.receipt} · {money(r.amount)}</button>)}
         </div>}
       </div>}
-      <label>Evento o concepto<input list="event-suggestions" value={incomeForm.concept} onChange={(event) => setIncomeForm({ ...incomeForm, concept: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="event-suggestions">{eventOptions.map((option) => <option value={option} key={option} />)}</datalist></label>
+      <label>Evento o concepto<input list="event-suggestions" value={incomeForm.concept} onChange={(event) => setIncomeForm({ ...incomeForm, concept: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="event-suggestions">{suggestionsFor(incomeForm.concept, eventOptions).map((option) => <option value={option} key={option} />)}</datalist></label>
       <div className="form-row"><label>Efectivo (Bs)<input type="number" value={incomeForm.cash} onChange={(event) => setIncomeForm({ ...incomeForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={incomeForm.qr} onChange={(event) => setIncomeForm({ ...incomeForm, qr: event.target.value })} placeholder="0.00" /></label></div>
       <div className="payment-note">Puedes combinar efectivo y QR en un mismo recibo. El concepto es libre; las sugerencias solo ayudan a escribir más rápido.</div>
       <button className="primary-button full" onClick={saveIncome}>Guardar y emitir recibo <span>→</span></button>
@@ -561,7 +576,7 @@ function App() {
       <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Registrar egreso</h2></div><button className="close-button" onClick={() => setShowExpenseModal(false)}>×</button></div>
       <label>Pagado a<input value={expenseForm.recipient} onChange={(event) => setExpenseForm({ ...expenseForm, recipient: event.target.value })} placeholder="Ej. Ferretería Central" /></label>
       <label>Concepto<input value={expenseForm.concept} onChange={(event) => setExpenseForm({ ...expenseForm, concept: event.target.value })} placeholder="Ej. Materiales para campamento" /></label>
-      <label>Categoría<input list="category-suggestions" value={expenseForm.category} onChange={(event) => setExpenseForm({ ...expenseForm, category: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="category-suggestions">{categoryOptions.map((option) => <option value={option} key={option} />)}</datalist></label>
+      <label>Categoría<input list="category-suggestions" value={expenseForm.category} onChange={(event) => setExpenseForm({ ...expenseForm, category: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="category-suggestions">{suggestionsFor(expenseForm.category, categoryOptions).map((option) => <option value={option} key={option} />)}</datalist></label>
       <div className="form-row"><label>Efectivo (Bs)<input type="number" value={expenseForm.cash} onChange={(event) => setExpenseForm({ ...expenseForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={expenseForm.qr} onChange={(event) => setExpenseForm({ ...expenseForm, qr: event.target.value })} placeholder="0.00" /></label></div>
       <div className="payment-note">Puedes combinar efectivo y QR en un mismo egreso. La categoría es libre; las sugerencias solo ayudan a escribir más rápido.</div>
       <button className="primary-button full" onClick={saveExpense}>Guardar y emitir comprobante <span>→</span></button>
