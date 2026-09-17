@@ -157,6 +157,37 @@ function App() {
     }
   }
 
+  // Una copia para el cliente y otra para el archivo administrativo, ambas completas para imprimir juntas
+  const renderReceiptCopy = (payment: Payment, copy: 'cliente' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
+    <div className="receipt-paper" ref={ref}>
+      <div className="receipt-brand">SEC-CAR<small>Seminario de Educación Cristiana</small></div>
+      <div className="receipt-type">RECIBO DE PAGO <strong>{payment.receipt}</strong></div>
+      <div className="receipt-line"><span>Recibí de:</span><b>{payment.person}</b></div>
+      {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
+      <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
+      <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
+      <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
+      <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
+      <div className="signature-row"><span>Firma de quien paga</span><span>Firma de quien cobra</span></div>
+      <div className="copy-mark">{copy === 'cliente' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
+    </div>
+  )
+
+  const renderVoucherCopy = (expense: Expense, copy: 'beneficiario' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
+    <div className="receipt-paper" ref={ref}>
+      <div className="receipt-brand">SEC-CAR<small>Seminario de Educación Cristiana</small></div>
+      <div className="receipt-type">COMPROBANTE DE EGRESO <strong>{expense.voucher}</strong></div>
+      <div className="receipt-line"><span>Pagado a:</span><b>{expense.recipient}</b></div>
+      <div className="receipt-line"><span>Concepto:</span><b>{expense.concept}</b></div>
+      <div className="receipt-line"><span>Categoría:</span><b>{expense.category}</b></div>
+      <div className="receipt-line"><span>Fecha:</span><b>{formatDate(expense.date)}</b></div>
+      <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(expense.amount)}</strong></div>
+      <div className="receipt-methods"><span>Efectivo {money(expense.cash)}</span><span>QR {money(expense.qr)}</span></div>
+      <div className="signature-row"><span>Firma de quien recibe</span><span>Firma de quien paga</span></div>
+      <div className="copy-mark">{copy === 'beneficiario' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
+    </div>
+  )
+
   const filteredPayments = useMemo(() => payments.filter((p) => `${p.person} ${p.concept} ${p.receipt} ${p.carnet}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
   const filteredExpenses = useMemo(() => expenses.filter((e) => `${e.recipient} ${e.concept} ${e.category} ${e.voucher}`.toLowerCase().includes(expenseQuery.toLowerCase())), [expenses, expenseQuery])
 
@@ -497,19 +528,27 @@ function App() {
     </div></div>}
 
     {showReceipt && selectedReceipt && <div className="modal-backdrop" onClick={() => setShowReceipt(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
-      <div className="receipt-actions"><span>Vista previa del comprobante</span><button className="close-button" onClick={() => setShowReceipt(false)}>×</button></div>
-      <div className="receipt-paper" ref={receiptPaperRef}><div className="receipt-brand">SEC-CAR<small>Seminario de Educación Cristiana</small></div><div className="receipt-type">RECIBO DE PAGO <strong>{selectedReceipt.receipt}</strong></div><div className="receipt-line"><span>Recibí de:</span><b>{selectedReceipt.person}</b></div>{selectedReceipt.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{selectedReceipt.carnet}</b></div>}<div className="receipt-line"><span>Concepto:</span><b>{selectedReceipt.concept}</b></div><div className="receipt-line"><span>Fecha:</span><b>{formatDate(selectedReceipt.date)}</b></div><div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(selectedReceipt.amount)}</strong></div><div className="receipt-methods"><span>Efectivo {money(selectedReceipt.cash)}</span><span>QR {money(selectedReceipt.qr)}</span></div><div className="signature-row"><span>Firma de quien paga</span><span>Firma de quien cobra</span></div><div className="copy-mark">ORIGINAL <span>·</span> COPIA ADMINISTRACIÓN</div></div>
+      <div className="receipt-actions"><span>Vista previa del comprobante (2 copias)</span><button className="close-button" onClick={() => setShowReceipt(false)}>×</button></div>
+      <div className="receipt-print-sheet">
+        {renderReceiptCopy(selectedReceipt, 'cliente', receiptPaperRef)}
+        <div className="cut-line"><span>✂ Recortar aquí</span></div>
+        {renderReceiptCopy(selectedReceipt, 'administración')}
+      </div>
       <div className="receipt-actions-row">
-        <button className="outline-button full" onClick={() => window.print()}>Imprimir original y copia <span>↗</span></button>
+        <button className="outline-button full" onClick={() => window.print()}>Imprimir las 2 copias <span>↗</span></button>
         <button className="primary-button full" disabled={sharingReceipt} onClick={() => shareAsImage(receiptPaperRef.current, `${selectedReceipt.receipt}.png`, `Recibo ${selectedReceipt.receipt} - ${selectedReceipt.person} - ${money(selectedReceipt.amount)}`)}>{sharingReceipt ? 'Generando imagen…' : 'Enviar por WhatsApp'} <span>↗</span></button>
       </div>
     </div></div>}
 
     {showVoucher && selectedVoucher && <div className="modal-backdrop" onClick={() => setShowVoucher(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
-      <div className="receipt-actions"><span>Vista previa del comprobante</span><button className="close-button" onClick={() => setShowVoucher(false)}>×</button></div>
-      <div className="receipt-paper" ref={voucherPaperRef}><div className="receipt-brand">SEC-CAR<small>Seminario de Educación Cristiana</small></div><div className="receipt-type">COMPROBANTE DE EGRESO <strong>{selectedVoucher.voucher}</strong></div><div className="receipt-line"><span>Pagado a:</span><b>{selectedVoucher.recipient}</b></div><div className="receipt-line"><span>Concepto:</span><b>{selectedVoucher.concept}</b></div><div className="receipt-line"><span>Categoría:</span><b>{selectedVoucher.category}</b></div><div className="receipt-line"><span>Fecha:</span><b>{formatDate(selectedVoucher.date)}</b></div><div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(selectedVoucher.amount)}</strong></div><div className="receipt-methods"><span>Efectivo {money(selectedVoucher.cash)}</span><span>QR {money(selectedVoucher.qr)}</span></div><div className="signature-row"><span>Firma de quien recibe</span><span>Firma de quien paga</span></div><div className="copy-mark">ORIGINAL <span>·</span> COPIA ADMINISTRACIÓN</div></div>
+      <div className="receipt-actions"><span>Vista previa del comprobante (2 copias)</span><button className="close-button" onClick={() => setShowVoucher(false)}>×</button></div>
+      <div className="receipt-print-sheet">
+        {renderVoucherCopy(selectedVoucher, 'beneficiario', voucherPaperRef)}
+        <div className="cut-line"><span>✂ Recortar aquí</span></div>
+        {renderVoucherCopy(selectedVoucher, 'administración')}
+      </div>
       <div className="receipt-actions-row">
-        <button className="outline-button full" onClick={() => window.print()}>Imprimir original y copia <span>↗</span></button>
+        <button className="outline-button full" onClick={() => window.print()}>Imprimir las 2 copias <span>↗</span></button>
         <button className="primary-button full" disabled={sharingReceipt} onClick={() => shareAsImage(voucherPaperRef.current, `${selectedVoucher.voucher}.png`, `Comprobante ${selectedVoucher.voucher} - ${selectedVoucher.recipient} - ${money(selectedVoucher.amount)}`)}>{sharingReceipt ? 'Generando imagen…' : 'Enviar por WhatsApp'} <span>↗</span></button>
       </div>
     </div></div>}
