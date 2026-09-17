@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import './App.css'
 
-type Account = { name: 'Melitza' | 'Ovet'; password: string; needsPassword: boolean }
+type Account = { name: 'Melitza' | 'Ovet'; password: string; needsPassword: boolean; fullName: string }
 const defaultAccounts: Account[] = [
-  { name: 'Melitza', password: '', needsPassword: true },
-  { name: 'Ovet', password: '', needsPassword: true },
+  { name: 'Melitza', password: '', needsPassword: true, fullName: '' },
+  { name: 'Ovet', password: '', needsPassword: true, fullName: '' },
 ]
 const accountsKey = 'sec-car-accounts'
 // Clave administrativa configurable por variable de entorno (VITE_ADMIN_RESET_KEY), sin necesidad de tocar el código
@@ -13,7 +13,8 @@ const adminResetKey = import.meta.env.VITE_ADMIN_RESET_KEY || 'SEC-CAR-ADMIN'
 
 function readAccounts(): Account[] {
   const stored = localStorage.getItem(accountsKey)
-  return stored ? JSON.parse(stored) as Account[] : defaultAccounts
+  const parsed = stored ? JSON.parse(stored) as Account[] : defaultAccounts
+  return parsed.map((account) => ({ ...account, fullName: account.fullName || '' }))
 }
 
 function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void }) {
@@ -21,19 +22,21 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
   const [selected, setSelected] = useState<Account['name']>('Melitza')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [fullName, setFullName] = useState('')
   const [mode, setMode] = useState<'login' | 'first' | 'recovery'>('login')
   const [message, setMessage] = useState('')
 
   const current = accounts.find((account) => account.name === selected)!
   const persist = (next: Account[]) => { setAccounts(next); localStorage.setItem(accountsKey, JSON.stringify(next)) }
-  const chooseUser = (name: Account['name']) => { setSelected(name); setPassword(''); setConfirm(''); setMessage(''); setMode('login') }
+  const chooseUser = (name: Account['name']) => { setSelected(name); setPassword(''); setConfirm(''); setFullName(''); setMessage(''); setMode('login') }
 
   const submit = () => {
     if (mode === 'first') {
+      if (!fullName.trim()) { setMessage('Escribe tu nombre y apellido; aparecerá en la firma de los comprobantes.'); return }
       if (password.length < 6 || password !== confirm) { setMessage('La contraseña debe tener 6 caracteres y coincidir en ambos campos.'); return }
-      persist(accounts.map((account) => account.name === selected ? { ...account, password, needsPassword: false } : account))
+      persist(accounts.map((account) => account.name === selected ? { ...account, password, needsPassword: false, fullName: fullName.trim() } : account))
       setMessage('Contraseña creada. Ya puedes ingresar a SEC-CAR.')
-      setMode('login'); setPassword(''); setConfirm(''); return
+      setMode('login'); setPassword(''); setConfirm(''); setFullName(''); return
     }
     if (password && password === current.password && !current.needsPassword) { onLogin(selected); return }
     setMessage('La contraseña no coincide. Si la olvidaste, usa “Recuperar acceso”.')
@@ -47,7 +50,7 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
 
   return <div className="auth-shell"><div className="auth-panel"><div className="auth-brand"><div className="brand-mark"><img src="/logo-seccar.jpg" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Seminario de Educación Cristiana</span></div></div>
     <div className="auth-copy"><span className="eyebrow">ACCESO PRIVADO</span><h1>{mode === 'recovery' ? 'Recuperar acceso' : mode === 'first' ? 'Crea tu contraseña' : 'Bienvenido de nuevo'}</h1><p>{mode === 'recovery' ? 'El responsable puede reiniciar el acceso de una de las dos cuentas autorizadas.' : mode === 'first' ? `Es la primera vez que ingresa ${selected}. Define una contraseña personal para continuar.` : 'Ingresa con tu cuenta para registrar y consultar los movimientos del centro.'}</p></div>
-    {mode !== 'recovery' && <><div className="user-picker"><span>¿Quién eres?</span><div>{(['Melitza', 'Ovet'] as const).map((name) => <button key={name} className={selected === name ? 'user-choice selected' : 'user-choice'} onClick={() => chooseUser(name)}><span className="auth-avatar">{name[0]}</span><span><strong>{name}</strong><small>{accounts.find((account) => account.name === name)?.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small></span>{selected === name && <b>✓</b>}</button>)}</div></div><label className="auth-label">{mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" /></label>{mode === 'first' && <label className="auth-label">Confirmar contraseña<input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseña" /></label>}<button className="auth-submit" onClick={() => current.needsPassword && mode === 'login' ? setMode('first') : submit()}>{current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span></button><button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button></>}
+    {mode !== 'recovery' && <><div className="user-picker"><span>¿Quién eres?</span><div>{(['Melitza', 'Ovet'] as const).map((name) => <button key={name} className={selected === name ? 'user-choice selected' : 'user-choice'} onClick={() => chooseUser(name)}><span className="auth-avatar">{name[0]}</span><span><strong>{name}</strong><small>{accounts.find((account) => account.name === name)?.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small></span>{selected === name && <b>✓</b>}</button>)}</div></div>{mode === 'first' && <label className="auth-label">Nombre y apellido<input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Quispe" /></label>}<label className="auth-label">{mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" /></label>{mode === 'first' && <label className="auth-label">Confirmar contraseña<input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseña" /></label>}<button className="auth-submit" onClick={() => current.needsPassword && mode === 'login' ? setMode('first') : submit()}>{current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span></button><button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button></>}
     {mode === 'recovery' && <><div className="recovery-card"><p>Selecciona la cuenta que necesita volver a configurarse.</p><div className="recovery-users">{(['Melitza', 'Ovet'] as const).map((name) => <button key={name} className={selected === name ? 'selected' : ''} onClick={() => setSelected(name)}>{name}<span>{selected === name ? 'Seleccionada' : 'Seleccionar'}</span></button>)}</div><label className="auth-label">Clave administrativa<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="La define el responsable" /></label><button className="auth-submit" onClick={resetAccess}>Reiniciar acceso de {selected} <span>↻</span></button></div><button className="auth-link" onClick={() => { setMode('login'); setPassword(''); setMessage('') }}>Volver al ingreso</button></>}
     {message && <div className="auth-message">{message}</div>}<div className="auth-footer"><span className="sync-dot"></span> Sistema listo para sincronizar con Supabase</div>
     <p className="auth-verse">"Todo lo que hagáis, hacedlo de corazón, como para el Señor y no para los hombres" — Colosenses 3:23</p>
@@ -110,6 +113,8 @@ function App() {
   const [categoryOptions, setCategoryOptions] = usePersistedState<string[]>('sec-car-categories', initialCategoryOptions)
   const [people, setPeople] = usePersistedState<Person[]>('sec-car-people', initialPeople)
   const [eventPrices, setEventPrices] = usePersistedState<Record<string, number>>('sec-car-event-prices', {})
+  const [accounts, setAccounts] = usePersistedState<Account[]>(accountsKey, defaultAccounts)
+  const [fullNameDraft, setFullNameDraft] = useState('')
   const [theme, setTheme] = usePersistedState<'light' | 'dark'>('sec-car-theme', 'light')
 
   const [query, setQuery] = useState('')
@@ -132,6 +137,10 @@ function App() {
   const receiptPaperRef = useRef<HTMLDivElement | null>(null)
   const voucherPaperRef = useRef<HTMLDivElement | null>(null)
   const [sharingReceipt, setSharingReceipt] = useState(false)
+
+  useEffect(() => {
+    if (loggedUser) setFullNameDraft(accounts.find((account) => account.name === loggedUser)?.fullName || '')
+  }, [loggedUser])
 
   // Convierte el comprobante en imagen y lo comparte por WhatsApp (o lo descarga como respaldo)
   const shareAsImage = async (node: HTMLDivElement | null, fileName: string, caption: string) => {
@@ -168,7 +177,7 @@ function App() {
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
       <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
-      <div className="signature-row"><span>Firma de quien paga</span><span>Firma de quien cobra</span></div>
+      <div className="signature-row"><div className="signature-col"><span className="signature-name">{payment.person}</span><span className="signature-role">INTERESADO</span></div><div className="signature-col"><span className="signature-name">{accountFullName(payment.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
       <div className="copy-mark">{copy === 'cliente' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
     </div>
   )
@@ -183,7 +192,7 @@ function App() {
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(expense.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(expense.amount)}</strong></div>
       <div className="receipt-methods"><span>Efectivo {money(expense.cash)}</span><span>QR {money(expense.qr)}</span></div>
-      <div className="signature-row"><span>Firma de quien recibe</span><span>Firma de quien paga</span></div>
+      <div className="signature-row"><div className="signature-col"><span className="signature-name">{expense.recipient}</span><span className="signature-role">INTERESADO</span></div><div className="signature-col"><span className="signature-name">{accountFullName(expense.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
       <div className="copy-mark">{copy === 'beneficiario' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
     </div>
   )
@@ -293,6 +302,9 @@ function App() {
   const toggleIncomeStatus = (id: string) => setPayments(payments.map((p) => p.id === id ? { ...p, status: p.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : p))
   const toggleExpenseStatus = (id: string) => setExpenses(expenses.map((e) => e.id === id ? { ...e, status: e.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : e))
   const canManage = (owner?: Account['name']) => !owner || owner === loggedUser
+  // Nombre y apellido a mostrar en la firma de administrador; si no fue definido, usa el nombre de la cuenta
+  const accountFullName = (name?: Account['name']) => (name && accounts.find((account) => account.name === name)?.fullName.trim()) || name || 'Administrador'
+  const saveFullName = () => { if (!loggedUser || !fullNameDraft.trim()) return; setAccounts(accounts.map((account) => account.name === loggedUser ? { ...account, fullName: fullNameDraft.trim() } : account)) }
   const addEventOption = () => { const name = newEventName.trim(); if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name]); setNewEventName('') }
   const removeEventOption = (name: string) => setEventOptions(eventOptions.filter((option) => option !== name))
   const setEventPrice = (name: string, value: string) => setEventPrices({ ...eventPrices, [name]: Number(value) || 0 })
@@ -322,7 +334,7 @@ function App() {
     setPayments([]); setExpenses([]); setConfirmClear('')
   }
 
-  if (!loggedUser) return <AccessScreen onLogin={setLoggedUser} />
+  if (!loggedUser) return <AccessScreen onLogin={(name) => { setAccounts(readAccounts()); setLoggedUser(name) }} />
 
   return <div className={`app-shell ${theme}`}>
     <aside className="sidebar">
@@ -480,6 +492,13 @@ function App() {
           <div className="stat-card accent-card"><div className="stat-head"><span>TOTAL INGRESOS</span><i>↗</i></div><strong>{money(totalIncome)}</strong><small>Efectivo {money(activeIncome.reduce((s, p) => s + p.cash, 0))} · QR {money(activeIncome.reduce((s, p) => s + p.qr, 0))}</small></div>
           <div className="stat-card"><div className="stat-head"><span>TOTAL EGRESOS</span><i className="rose-icon">↘</i></div><strong>{money(totalExpense)}</strong><small>Efectivo {money(activeExpenses.reduce((s, e) => s + e.cash, 0))} · QR {money(activeExpenses.reduce((s, e) => s + e.qr, 0))}</small></div>
           <div className="stat-card"><div className="stat-head"><span>SALDO GENERAL</span><i className="green-icon">◈</i></div><strong>{money(balance)}</strong><small>Desde el inicio del registro</small></div>
+        </section>
+        <section className="panel">
+          <div className="panel-head"><div><h3>Mi firma en los comprobantes</h3><p>Este nombre y apellido aparece como ADMINISTRADOR en la firma de los recibos y comprobantes que emites</p></div></div>
+          <div className="inline-form">
+            <label>Nombre y apellido de {loggedUser}<input value={fullNameDraft} onChange={(event) => setFullNameDraft(event.target.value)} placeholder="Ej. Melitza Quispe" /></label>
+            <button className="primary-button" onClick={saveFullName}>Guardar nombre</button>
+          </div>
         </section>
         <section className="panel">
           <div className="panel-head"><div><h3>Respaldo y mantenimiento</h3><p>Descarga el historial antes de vaciarlo, para no perder datos antiguos</p></div></div>
