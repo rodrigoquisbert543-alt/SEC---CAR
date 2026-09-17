@@ -2,24 +2,29 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import './App.css'
 
-type Account = { name: 'Melitza' | 'Ovet'; password: string; needsPassword: boolean; fullName: string }
+type Account = { name: 'Melitza Huanca' | 'Ovet Zúñiga'; password: string; needsPassword: boolean; fullName: string }
 const defaultAccounts: Account[] = [
-  { name: 'Melitza', password: '', needsPassword: true, fullName: '' },
-  { name: 'Ovet', password: '', needsPassword: true, fullName: '' },
+  { name: 'Melitza Huanca', password: '', needsPassword: true, fullName: '' },
+  { name: 'Ovet Zúñiga', password: '', needsPassword: true, fullName: '' },
 ]
 const accountsKey = 'sec-car-accounts'
 // Clave administrativa configurable por variable de entorno (VITE_ADMIN_RESET_KEY), sin necesidad de tocar el código
 const adminResetKey = import.meta.env.VITE_ADMIN_RESET_KEY || 'SEC-CAR-ADMIN'
+// Migra datos guardados con los nombres cortos anteriores (Melitza/Ovet) a los nombres completos actuales
+const legacyNameMap: Record<string, Account['name']> = { Melitza: 'Melitza Huanca', Ovet: 'Ovet Zúñiga' }
+const migrateAccountName = (name: string): Account['name'] => legacyNameMap[name] || (name as Account['name'])
 
 function readAccounts(): Account[] {
   const stored = localStorage.getItem(accountsKey)
   const parsed = stored ? JSON.parse(stored) as Account[] : defaultAccounts
-  return parsed.map((account) => ({ ...account, fullName: account.fullName || '' }))
+  const migrated = parsed.map((account) => ({ ...account, name: migrateAccountName(account.name as unknown as string), fullName: account.fullName || '' }))
+  defaultAccounts.forEach((account) => { if (!migrated.some((existing) => existing.name === account.name)) migrated.push(account) })
+  return migrated
 }
 
 function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void }) {
   const [accounts, setAccounts] = useState(readAccounts)
-  const [selected, setSelected] = useState<Account['name']>('Melitza')
+  const [selected, setSelected] = useState<Account['name']>('Melitza Huanca')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [fullName, setFullName] = useState('')
@@ -50,8 +55,8 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
 
   return <div className="auth-shell"><div className="auth-panel"><div className="auth-brand"><div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Seminario de Educación Cristiana</span></div></div>
     <div className="auth-copy"><span className="eyebrow">ACCESO PRIVADO</span><h1>{mode === 'recovery' ? 'Recuperar acceso' : mode === 'first' ? 'Crea tu contraseña' : 'Bienvenido de nuevo'}</h1><p>{mode === 'recovery' ? 'El responsable puede reiniciar el acceso de una de las dos cuentas autorizadas.' : mode === 'first' ? `Es la primera vez que ingresa ${selected}. Define una contraseña personal para continuar.` : 'Ingresa con tu cuenta para registrar y consultar los movimientos del centro.'}</p></div>
-    {mode !== 'recovery' && <><div className="user-picker"><span>¿Quién eres?</span><div>{(['Melitza', 'Ovet'] as const).map((name) => <button key={name} className={selected === name ? 'user-choice selected' : 'user-choice'} onClick={() => chooseUser(name)}><span className="auth-avatar">{name[0]}</span><span><strong>{name}</strong><small>{accounts.find((account) => account.name === name)?.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small></span>{selected === name && <b>✓</b>}</button>)}</div></div>{mode === 'first' && <label className="auth-label">Nombre y apellido<input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Quispe" /></label>}<label className="auth-label">{mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" /></label>{mode === 'first' && <label className="auth-label">Confirmar contraseña<input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseña" /></label>}<button className="auth-submit" onClick={() => current.needsPassword && mode === 'login' ? setMode('first') : submit()}>{current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span></button><button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button></>}
-    {mode === 'recovery' && <><div className="recovery-card"><p>Selecciona la cuenta que necesita volver a configurarse.</p><div className="recovery-users">{(['Melitza', 'Ovet'] as const).map((name) => <button key={name} className={selected === name ? 'selected' : ''} onClick={() => setSelected(name)}>{name}<span>{selected === name ? 'Seleccionada' : 'Seleccionar'}</span></button>)}</div><label className="auth-label">Clave administrativa<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="La define el responsable" /></label><button className="auth-submit" onClick={resetAccess}>Reiniciar acceso de {selected} <span>↻</span></button></div><button className="auth-link" onClick={() => { setMode('login'); setPassword(''); setMessage('') }}>Volver al ingreso</button></>}
+    {mode !== 'recovery' && <><div className="user-picker"><span>¿Quién eres?</span><div>{(['Melitza Huanca', 'Ovet Zúñiga'] as const).map((name) => <button key={name} className={selected === name ? 'user-choice selected' : 'user-choice'} onClick={() => chooseUser(name)}><span className="auth-avatar">{name[0]}</span><span><strong>{name}</strong><small>{accounts.find((account) => account.name === name)?.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small></span>{selected === name && <b>✓</b>}</button>)}</div></div>{mode === 'first' && <label className="auth-label">Nombre y apellido<input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Huanca" /></label>}<label className="auth-label">{mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" /></label>{mode === 'first' && <label className="auth-label">Confirmar contraseña<input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseña" /></label>}<button className="auth-submit" onClick={() => current.needsPassword && mode === 'login' ? setMode('first') : submit()}>{current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span></button><button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button></>}
+    {mode === 'recovery' && <><div className="recovery-card"><p>Selecciona la cuenta que necesita volver a configurarse.</p><div className="recovery-users">{(['Melitza Huanca', 'Ovet Zúñiga'] as const).map((name) => <button key={name} className={selected === name ? 'selected' : ''} onClick={() => setSelected(name)}>{name}<span>{selected === name ? 'Seleccionada' : 'Seleccionar'}</span></button>)}</div><label className="auth-label">Clave administrativa<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="La define el responsable" /></label><button className="auth-submit" onClick={resetAccess}>Reiniciar acceso de {selected} <span>↻</span></button></div><button className="auth-link" onClick={() => { setMode('login'); setPassword(''); setMessage('') }}>Volver al ingreso</button></>}
     {message && <div className="auth-message">{message}</div>}<div className="auth-footer"><span className="sync-dot"></span> Sistema listo para sincronizar con Supabase</div>
     <p className="auth-verse">"Todo lo que hagáis, hacedlo de corazón, como para el Señor y no para los hombres" — Colosenses 3:23</p>
   </div><div className="auth-visual"><div className="visual-note"><span>CONTROL FINANCIERO</span><strong>Recibos claros.<br />Cuentas en orden.</strong><p>Ingresos, egresos y pagos parciales en un solo lugar.</p></div><div className="visual-receipt"><small>SEC-CAR · RECIBO DE PAGO</small><strong>Bs 250.00</strong><span>ORIGINAL + COPIA ADMINISTRACIÓN</span></div></div></div>
@@ -87,21 +92,23 @@ const standingOf = (paid: number, price: number): PaymentStanding => {
 }
 
 const initialPayments: Payment[] = [
-  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', carnet: '', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza' },
-  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', carnet: '', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet' },
-  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', carnet: '', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet' },
-  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', carnet: '', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza' },
+  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', carnet: '', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
+  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', carnet: '', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
+  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', carnet: '', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
+  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', carnet: '', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
 ]
 
 const initialExpenses: Expense[] = [
-  { id: 'e1', voucher: 'EGR-00032', concept: 'Pago de electricidad', recipient: 'ENDE', category: 'Servicios básicos', date: '2024-06-09', amount: 145, cash: 145, qr: 0, status: 'Aplicado', issuedBy: 'Ovet' },
-  { id: 'e2', voucher: 'EGR-00031', concept: 'Materiales para campamento', recipient: 'Ferretería Central', category: 'Materiales y suministros', date: '2024-06-07', amount: 210, cash: 60, qr: 150, status: 'Aplicado', issuedBy: 'Melitza' },
+  { id: 'e1', voucher: 'EGR-00032', concept: 'Pago de electricidad', recipient: 'ENDE', category: 'Servicios básicos', date: '2024-06-09', amount: 145, cash: 145, qr: 0, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
+  { id: 'e2', voucher: 'EGR-00031', concept: 'Materiales para campamento', recipient: 'Ferretería Central', category: 'Materiales y suministros', date: '2024-06-07', amount: 210, cash: 60, qr: 150, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
 ]
 
 const initialEventOptions = ['Campamento juvenil', 'Seminario de liderazgo', 'Retiro de damas 2024']
 const initialCategoryOptions = ['Servicios básicos', 'Mantenimiento', 'Materiales y suministros', 'Alimentación', 'Transporte', 'Honorarios', 'Otros']
 const initialPeople: Person[] = []
 const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Personas'] as const
+// Solo esta cuenta puede crear, editar precio o quitar eventos
+const eventManager: Account['name'] = 'Ovet Zúñiga'
 
 function App() {
   const [loggedUser, setLoggedUser] = useState<Account['name'] | null>(null)
@@ -141,6 +148,13 @@ function App() {
   useEffect(() => {
     if (loggedUser) setFullNameDraft(accounts.find((account) => account.name === loggedUser)?.fullName || '')
   }, [loggedUser])
+
+  // Migra registros guardados con los nombres cortos anteriores (Melitza/Ovet) a los nombres completos actuales
+  useEffect(() => {
+    setAccounts((prev) => prev.map((account) => ({ ...account, name: migrateAccountName(account.name as unknown as string) })))
+    setPayments((prev) => prev.map((payment) => payment.issuedBy ? { ...payment, issuedBy: migrateAccountName(payment.issuedBy as unknown as string) } : payment))
+    setExpenses((prev) => prev.map((expense) => expense.issuedBy ? { ...expense, issuedBy: migrateAccountName(expense.issuedBy as unknown as string) } : expense))
+  }, [])
 
   // Convierte el comprobante en imagen y lo comparte por WhatsApp (o lo descarga como respaldo)
   const shareAsImage = async (node: HTMLDivElement | null, fileName: string, caption: string) => {
@@ -278,7 +292,7 @@ function App() {
     const carnet = incomeForm.carnet.trim()
     const next: Payment = { id: crypto.randomUUID(), receipt: nextCode('REC', 242 + payments.length), person: personName, carnet, concept, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado', issuedBy: loggedUser! }
     setPayments([next, ...payments])
-    if (!eventOptions.includes(concept)) setEventOptions([...eventOptions, concept])
+    if (loggedUser === eventManager && !eventOptions.includes(concept)) setEventOptions([...eventOptions, concept])
     const existing = people.find((person) => person.name.toLowerCase() === personName.toLowerCase())
     if (!existing) setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone: '', notes: '' }])
     else if (carnet && !existing.carnet) setPeople(people.map((person) => person.id === existing.id ? { ...person, carnet } : person))
@@ -304,9 +318,9 @@ function App() {
   // Nombre y apellido a mostrar en la firma de administrador; si no fue definido, usa el nombre de la cuenta
   const accountFullName = (name?: Account['name']) => (name && accounts.find((account) => account.name === name)?.fullName.trim()) || name || 'Administrador'
   const saveFullName = () => { if (!loggedUser || !fullNameDraft.trim()) return; setAccounts(accounts.map((account) => account.name === loggedUser ? { ...account, fullName: fullNameDraft.trim() } : account)) }
-  const addEventOption = () => { const name = newEventName.trim(); if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name]); setNewEventName('') }
-  const removeEventOption = (name: string) => setEventOptions(eventOptions.filter((option) => option !== name))
-  const setEventPrice = (name: string, value: string) => setEventPrices({ ...eventPrices, [name]: Number(value) || 0 })
+  const addEventOption = () => { if (loggedUser !== eventManager) return; const name = newEventName.trim(); if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name]); setNewEventName('') }
+  const removeEventOption = (name: string) => { if (loggedUser !== eventManager) return; setEventOptions(eventOptions.filter((option) => option !== name)) }
+  const setEventPrice = (name: string, value: string) => { if (loggedUser !== eventManager) return; setEventPrices({ ...eventPrices, [name]: Number(value) || 0 }) }
   const addPerson = () => {
     if (!personForm.name.trim()) return
     setPeople([...people, { id: crypto.randomUUID(), name: personForm.name.trim(), carnet: personForm.carnet.trim(), phone: personForm.phone.trim(), notes: personForm.notes.trim() }])
@@ -417,17 +431,17 @@ function App() {
       </section>}
 
       {activePage === 'Eventos' && <section className="panel">
-        <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Estas sugerencias aparecen al registrar un ingreso; el campo de concepto siempre acepta texto libre.</p></div></div>
-        <div className="inline-form">
+        <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Estas sugerencias aparecen al registrar un ingreso; el campo de concepto siempre acepta texto libre.{loggedUser !== eventManager && ' Solo Ovet Zúñiga puede crear, editar el precio o quitar eventos.'}</p></div></div>
+        {loggedUser === eventManager && <div className="inline-form">
           <label>Nuevo evento o concepto<input value={newEventName} onChange={(event) => setNewEventName(event.target.value)} placeholder="Ej. Retiro de varones 2025" /></label>
           <button className="primary-button" onClick={addEventOption}>Agregar</button>
-        </div>
+        </div>}
         <div className="event-detail-list">
           {eventStats.map((stat) => <div className="event-detail-card" key={stat.name}>
             <div className="event-detail-head">
               <div><strong>{stat.name}</strong><small>{stat.count} recibos · {money(stat.total)} recaudados</small></div>
-              <label className="price-field">Precio del evento (Bs)<input type="number" value={stat.price || ''} onChange={(event) => setEventPrice(stat.name, event.target.value)} placeholder="0.00" /></label>
-              <button onClick={() => removeEventOption(stat.name)} aria-label={`Quitar ${stat.name}`}>×</button>
+              {loggedUser === eventManager ? <><label className="price-field">Precio del evento (Bs)<input type="number" value={stat.price || ''} onChange={(event) => setEventPrice(stat.name, event.target.value)} placeholder="0.00" /></label>
+              <button onClick={() => removeEventOption(stat.name)} aria-label={`Quitar ${stat.name}`}>×</button></> : <span className="price-field">Precio del evento<strong>{stat.price ? money(stat.price) : 'Sin definir'}</strong></span>}
             </div>
             {stat.price > 0 && <div className="event-progress-stats">
               <span className="progress-pill complete">Pagaron el total: <b>{stat.completo}</b></span>
