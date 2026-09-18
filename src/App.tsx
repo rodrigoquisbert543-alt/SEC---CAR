@@ -383,9 +383,13 @@ function App() {
     </aside>
     <main className="main-content">
       <header className="topbar"><div><span className="eyebrow">Seminario de Educación Cristiana Caranavi</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div><div className="top-actions"><button className="icon-button" aria-label="Cambiar tema" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☀' : '☾'}</button><button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button><div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div></div></header>
-
+    //filtro para buscar por fechas de ingresos y egresos
+    <section className="filter-row">
+      <label>Desde: <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} /></label>
+      <label>Hasta: <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} /></label>
+    </section>
       {activePage === 'Resumen' && <>
-        <section className="hero-row"><div><h2>Bienvenido, {loggedUser} <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div><div className="hero-actions"><button className="outline-button" onClick={() => setShowExpenseModal(true)}><span>−</span> Nuevo egreso</button><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div></section>
+        <section className="hero-row"><div><h2>Bienvenido(@), {loggedUser} <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div><div className="hero-actions"><button className="outline-button" onClick={() => setShowExpenseModal(true)}><span>−</span> Nuevo egreso</button><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div></section>
         <section className="stats-grid">
           <div className="stat-card accent-card"><div className="stat-head"><span>INGRESOS DEL MES</span><i>↗</i></div><strong>{money(incomeThisMonth)}</strong><small><b className="dark">{incomeThisMonthList.length} recibos</b> este mes</small></div>
           <div className="stat-card"><div className="stat-head"><span>EGRESOS DEL MES</span><i className="rose-icon">↘</i></div><strong>{money(expenseThisMonth)}</strong><small><b className="dark">{expenseThisMonthList.length} egresos</b> este mes</small></div>
