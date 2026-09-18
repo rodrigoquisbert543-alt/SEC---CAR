@@ -77,7 +77,9 @@
 .filter-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; background: #fff; border: 1px solid #e4e9e7; border-radius: 6px; padding: 14px 22px; margin-top: 16px; }
 .filter-title { color: #63736f; font-size: 10px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; }
 .filter-row label { color: #63736f; font-size: 10px; font-weight: 700; }
-.filter-row input[type="date"] { display: block; margin-top: 6px; background: #fff; border: 1px solid #dfe6e3; border-radius: 4px; padding: 8px 10px; color: #354845; font-size: 11px; outline-color: #b8862c; }
+.filter-row input[type="date"] { display: block; margin-top: 6px; background: #fff; border: 1px solid #dfe6e3; border-radius: 4px; padding: 8px 10px; color: #354845; font-size: 11px; outline-color: #b8862c; color-scheme: light; }
+.filter-row input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .7; }
+.filter-row input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 .filter-summary { display: flex; flex-wrap: wrap; gap: 9px; margin-left: auto; }
 .filter-summary span { background: #f6f9f7; border: 1px solid #e4e9e7; border-radius: 20px; color: #51635d; font-size: 10px; padding: 6px 12px; }
 .filter-summary b { color: #12472b; }
@@ -85,10 +87,15 @@
 .filter-hint { color: #9aa6a4; font-size: 10px; }
 .empty-cell { color: #9aa6a4; font-size: 11px; padding: 18px 22px; text-align: center; }
 .app-shell.dark .filter-row { background: #16211d; border-color: #223530; }
-.app-shell.dark .filter-row label { color: #9fb0aa; }
-.app-shell.dark .filter-title { color: #7f938c; }
-.app-shell.dark .filter-hint { color: #9fb0aa; }
-.app-shell.dark .filter-row input[type="date"] { background: #0e1512; border-color: #223530; color: #cddad4; }
+.app-shell.dark .filter-row label { color: #b9c7c1; }
+.app-shell.dark .filter-title { color: #8fa19b; }
+.app-shell.dark .filter-hint { color: #8fa19b; }
+/* El control nativo (icono del calendario y texto de la fecha) se adapta al tema con color-scheme */
+.app-shell.dark .filter-row input[type="date"] { background: #0e1512; border-color: #223530; color: #e4efea; color-scheme: dark; }
+.app-shell.dark .filter-row input[type="date"]::-webkit-datetime-edit, .app-shell.dark .filter-row input[type="date"]::-webkit-datetime-edit-fields-wrapper { color: #e4efea; }
+.app-shell.dark .filter-row input[type="date"]::-webkit-calendar-picker-indicator { opacity: .9; }
+/* Respaldo para navegadores que ignoran color-scheme: se aclara el icono nativo oscuro */
+@supports not (color-scheme: dark) { .app-shell.dark .filter-row input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) brightness(1.6); } }
 .app-shell.dark .filter-summary span { background: #16211d; border-color: #223530; color: #b9c7c1; }
 .app-shell.dark .filter-summary b { color: #eaf3ee; }
 .app-shell.dark .filter-clear { background: #16211d; border-color: #223530; }
