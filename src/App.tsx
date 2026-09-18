@@ -75,6 +75,8 @@ function usePersistedState<T>(key: string, initial: T) {
 const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const formatDate = (iso: string) => { const d = new Date(`${iso}T00:00:00`); return `${String(d.getDate()).padStart(2, '0')} ${monthNames[d.getMonth()]} ${d.getFullYear()}` }
 const todayISO = () => new Date().toISOString().slice(0, 10)
+// Indica si una fecha ISO (YYYY-MM-DD) cae dentro del rango elegido; un extremo vacío no limita la búsqueda
+const dateInRange = (date: string, start: string, end: string) => (!start || date >= start) && (!end || date <= end)
 const money = (value: number) => `Bs ${value.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`
 const nextCode = (prefix: string, count: number) => `${prefix}-${String(count).padStart(5, '0')}`
 
@@ -123,6 +125,10 @@ function App() {
   const [accounts, setAccounts] = usePersistedState<Account[]>(accountsKey, defaultAccounts)
   const [fullNameDraft, setFullNameDraft] = useState('')
   const [theme, setTheme] = usePersistedState<'light' | 'dark'>('sec-car-theme', 'light')
+
+  // Rango de fechas (YYYY-MM-DD) para consultar ingresos y egresos; un campo vacío significa sin límite
+  const [filterStartDate, setFilterStartDate] = usePersistedState('sec-car-filter-start', '')
+  const [filterEndDate, setFilterEndDate] = usePersistedState('sec-car-filter-end', '')
 
   const [query, setQuery] = useState('')
   const [expenseQuery, setExpenseQuery] = useState('')
@@ -212,8 +218,15 @@ function App() {
     </div>
   )
 
-  const filteredPayments = useMemo(() => payments.filter((p) => `${p.person} ${p.concept} ${p.receipt} ${p.carnet} ${p.phone}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
-  const filteredExpenses = useMemo(() => expenses.filter((e) => `${e.recipient} ${e.concept} ${e.category} ${e.voucher}`.toLowerCase().includes(expenseQuery.toLowerCase())), [expenses, expenseQuery])
+  // Registros que caen dentro del rango de fechas elegido (si el rango está vacío, se toman todos)
+  const hasDateFilter = Boolean(filterStartDate || filterEndDate)
+  const rangePayments = useMemo(() => payments.filter((p) => dateInRange(p.date, filterStartDate, filterEndDate)), [payments, filterStartDate, filterEndDate])
+  const rangeExpenses = useMemo(() => expenses.filter((e) => dateInRange(e.date, filterStartDate, filterEndDate)), [expenses, filterStartDate, filterEndDate])
+  const rangeIncomeTotal = rangePayments.filter((p) => p.status === 'Aplicado').reduce((sum, p) => sum + p.amount, 0)
+  const rangeExpenseTotal = rangeExpenses.filter((e) => e.status === 'Aplicado').reduce((sum, e) => sum + e.amount, 0)
+
+  const filteredPayments = useMemo(() => rangePayments.filter((p) => `${p.person} ${p.concept} ${p.receipt} ${p.carnet} ${p.phone}`.toLowerCase().includes(query.toLowerCase())), [rangePayments, query])
+  const filteredExpenses = useMemo(() => rangeExpenses.filter((e) => `${e.recipient} ${e.concept} ${e.category} ${e.voucher}`.toLowerCase().includes(expenseQuery.toLowerCase())), [rangeExpenses, expenseQuery])
 
   const activeIncome = payments.filter((p) => p.status === 'Aplicado')
   const activeExpenses = expenses.filter((e) => e.status === 'Aplicado')
@@ -230,8 +243,8 @@ function App() {
   const movements = useMemo(() => {
     const incomes = payments.map((p) => ({ id: p.id, type: 'Ingreso' as const, code: p.receipt, label: p.person, concept: p.concept, date: p.date, amount: p.amount, status: p.status }))
     const outs = expenses.map((e) => ({ id: e.id, type: 'Egreso' as const, code: e.voucher, label: e.recipient, concept: e.concept, date: e.date, amount: e.amount, status: e.status }))
-    return [...incomes, ...outs].sort((a, b) => b.date.localeCompare(a.date))
-  }, [payments, expenses])
+    return [...incomes, ...outs].filter((m) => dateInRange(m.date, filterStartDate, filterEndDate)).sort((a, b) => b.date.localeCompare(a.date))
+  }, [payments, expenses, filterStartDate, filterEndDate])
 
   // Agrupa los pagos activos de un evento por persona (nombre en minúsculas)
   const payersOfEvent = (eventName: string) => {
@@ -383,11 +396,19 @@ function App() {
     </aside>
     <main className="main-content">
       <header className="topbar"><div><span className="eyebrow">Seminario de Educación Cristiana Caranavi</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div><div className="top-actions"><button className="icon-button" aria-label="Cambiar tema" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☀' : '☾'}</button><button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button><div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div></div></header>
-    //filtro para buscar por fechas de ingresos y egresos
-    <section className="filter-row">
-      <label>Desde: <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} /></label>
-      <label>Hasta: <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} /></label>
-    </section>
+      {/* Filtro para buscar ingresos y egresos por rango de fechas */}
+      {(activePage === 'Resumen' || activePage === 'Ingresos' || activePage === 'Egresos') && <section className="filter-row">
+        <span className="filter-title">Filtrar por fecha</span>
+        <label>Desde<input type="date" value={filterStartDate} onChange={(event) => setFilterStartDate(event.target.value)} /></label>
+        <label>Hasta<input type="date" value={filterEndDate} onChange={(event) => setFilterEndDate(event.target.value)} /></label>
+        <div className="filter-summary">
+          <span>Ingresos: <b>{rangePayments.length}</b> recibos · <b>{money(rangeIncomeTotal)}</b></span>
+          <span>Egresos: <b>{rangeExpenses.length}</b> pagos · <b>{money(rangeExpenseTotal)}</b></span>
+        </div>
+        {hasDateFilter
+          ? <button className="filter-clear" onClick={() => { setFilterStartDate(''); setFilterEndDate('') }}>Limpiar fechas</button>
+          : <span className="filter-hint">Sin fechas elegidas: se muestran todos los movimientos.</span>}
+      </section>}
       {activePage === 'Resumen' && <>
         <section className="hero-row"><div><h2>Bienvenido(@), {loggedUser} <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div><div className="hero-actions"><button className="outline-button" onClick={() => setShowExpenseModal(true)}><span>−</span> Nuevo egreso</button><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div></section>
         <section className="stats-grid">
@@ -407,6 +428,7 @@ function App() {
                 <td>{money(m.amount)}</td>
                 <td><span className={m.status === 'Aplicado' ? 'status' : 'status void'}>{m.status}</span></td>
               </tr>)}
+              {movements.length === 0 && <tr><td className="empty-cell" colSpan={6}>No hay movimientos en las fechas elegidas.</td></tr>}
             </tbody></table></div>
           </div>
           <div className="panel events">
@@ -433,6 +455,7 @@ function App() {
             <td><span className={payment.status === 'Aplicado' ? 'status' : 'status void'}>{payment.status}</span></td>
             <td>{canManage(payment.issuedBy) ? <button className="status-toggle" onClick={() => toggleIncomeStatus(payment.id)}>{payment.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {payment.issuedBy}</span>}</td>
           </tr>)}
+          {filteredPayments.length === 0 && <tr><td className="empty-cell" colSpan={10}>No hay recibos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
         </tbody></table></div>
       </section>}
 
@@ -452,6 +475,7 @@ function App() {
             <td><span className={expense.status === 'Aplicado' ? 'status' : 'status void'}>{expense.status}</span></td>
             <td>{canManage(expense.issuedBy) ? <button className="status-toggle" onClick={() => toggleExpenseStatus(expense.id)}>{expense.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {expense.issuedBy}</span>}</td>
           </tr>)}
+          {filteredExpenses.length === 0 && <tr><td className="empty-cell" colSpan={9}>No hay egresos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
         </tbody></table></div>
       </section>}
 
