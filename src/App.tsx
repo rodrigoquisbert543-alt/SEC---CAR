@@ -146,6 +146,12 @@ function App() {
   const [incomeForm, setIncomeForm] = useState({ person: '', carnet: '', phone: '', concept: '', cash: '', qr: '' })
   const [expenseForm, setExpenseForm] = useState({ concept: '', recipient: '', category: '', cash: '', qr: '' })
   const [personForm, setPersonForm] = useState({ name: '', carnet: '', phone: '', notes: '' })
+  // Edición de un cliente del directorio: se guarda el id que se está editando y una copia de sus datos en el formulario
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null)
+  const [personEditForm, setPersonEditForm] = useState({ name: '', carnet: '', phone: '', notes: '' })
+  const [personMessage, setPersonMessage] = useState('')
+  // Cliente que se quiere quitar del directorio; se pide confirmación antes de borrarlo
+  const [pendingDelete, setPendingDelete] = useState<Person | null>(null)
   const [confirmClear, setConfirmClear] = useState('')
   const receiptPaperRef = useRef<HTMLDivElement | null>(null)
   const voucherPaperRef = useRef<HTMLDivElement | null>(null)
@@ -286,6 +292,8 @@ function App() {
   const undirectoried = Array.from(new Set(payments.map((p) => p.person))).filter((name) => !people.some((person) => person.name.toLowerCase() === name.toLowerCase())).map((name) => ({ name, carnet: payments.find((p) => p.person === name && p.carnet)?.carnet || '', phone: payments.find((p) => p.person === name && p.phone)?.phone || '' }))
 
   const filteredPeople = useMemo(() => peopleWithTotals.filter((person) => `${person.name} ${person.carnet} ${person.phone}`.toLowerCase().includes(peopleQuery.toLowerCase())), [peopleWithTotals, peopleQuery])
+  // Datos de totales del cliente que se está por eliminar, para avisar cuántos recibos y cuánto dinero tiene registrado
+  const pendingDeleteRecord = pendingDelete ? peopleWithTotals.find((person) => person.id === pendingDelete.id) : null
 
   // Coincidencia por nombre, carnet o teléfono, usada en el atajo de búsqueda de Ingresos
   const findPersonMatch = (term: string) => {
@@ -360,6 +368,36 @@ function App() {
     setPersonForm({ name: '', carnet: '', phone: '', notes: '' })
   }
   const removePerson = (id: string) => setPeople(people.filter((person) => person.id !== id))
+  // Abre la ficha del cliente con sus datos actuales para poder corregirlos
+  const startEditPerson = (person: Person) => {
+    setEditingPersonId(person.id)
+    setPersonEditForm({ name: person.name, carnet: person.carnet, phone: person.phone, notes: person.notes })
+    setPersonMessage('')
+  }
+  const closeEditPerson = () => { setEditingPersonId(null); setPersonMessage('') }
+  // Guarda los cambios del cliente; si cambia el nombre, también se actualizan sus recibos para no perder su historial ni sus totales
+  const savePersonEdit = () => {
+    const target = people.find((person) => person.id === editingPersonId)
+    if (!target) return
+    const name = personEditForm.name.trim()
+    if (!name) { setPersonMessage('Escribe el nombre del cliente.'); return }
+    if (people.some((person) => person.id !== target.id && person.name.toLowerCase() === name.toLowerCase())) {
+      setPersonMessage('Ya existe otro cliente con ese nombre. Corrige ese registro o usa un dato que lo distinga.')
+      return
+    }
+    const carnet = personEditForm.carnet.trim()
+    const phone = personEditForm.phone.trim()
+    setPeople(people.map((person) => person.id === target.id ? { ...person, name, carnet, phone, notes: personEditForm.notes.trim() } : person))
+    // Solo se tocan los recibos si cambió el nombre (para que el historial siga vinculado) o si hay carnet/teléfono nuevos que completar
+    if (target.name.toLowerCase() !== name.toLowerCase() || carnet !== target.carnet || phone !== target.phone) {
+      setPayments(payments.map((payment) => payment.person.toLowerCase() === target.name.toLowerCase()
+        ? { ...payment, person: name, carnet: payment.carnet || carnet, phone: payment.phone || phone }
+        : payment))
+    }
+    setEditingPersonId(null); setPersonMessage('')
+  }
+  const askRemovePerson = (person: Person) => setPendingDelete(person)
+  const confirmRemovePerson = () => { if (pendingDelete) removePerson(pendingDelete.id); setPendingDelete(null) }
   const registerPayer = (name: string, carnet: string, phone: string) => setPeople([...people, { id: crypto.randomUUID(), name, carnet, phone, notes: '' }])
 
   const exportBackup = () => {
@@ -524,7 +562,7 @@ function App() {
 
 
       {activePage === 'Clientes' && <section className="panel">
-        <div className="panel-head"><div><h3>Directorio de clientes</h3><p>Clientes registrados, cuánto han pagado y cuánto deben por evento</p></div></div>
+        <div className="panel-head"><div><h3>Directorio de clientes</h3><p>Clientes registrados, cuánto han pagado y cuánto deben por evento. Puedes editar su ficha o quitarlos del directorio.</p></div></div>
         <div className="inline-form">
           <label>Nombre<input value={personForm.name} onChange={(event) => setPersonForm({ ...personForm, name: event.target.value })} placeholder="Nombre completo" /></label>
           <label>N.º de carnet<input value={personForm.carnet} onChange={(event) => setPersonForm({ ...personForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
@@ -532,18 +570,23 @@ function App() {
           <label>Notas<input value={personForm.notes} onChange={(event) => setPersonForm({ ...personForm, notes: event.target.value })} placeholder="Opcional" /></label>
           <button className="primary-button" onClick={addPerson}>Agregar cliente</button>
         </div>
-        <div className="filters"><div className="search"><span>⌕</span><input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Buscar por nombre o carnet..." /></div></div>
-        <div className="table-wrap"><table><thead><tr><th>NOMBRE</th><th>CARNET</th><th>TELÉFONO</th><th>TOTAL PAGADO</th><th>TOTAL ADEUDADO</th><th>DETALLE POR EVENTO</th><th></th></tr></thead><tbody>
+        <div className="filters"><div className="search"><span>⌕</span><input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
+        <div className="table-wrap"><table><thead><tr><th>NOMBRE</th><th>CARNET</th><th>TELÉFONO</th><th>TOTAL PAGADO</th><th>TOTAL ADEUDADO</th><th>DETALLE POR EVENTO</th><th>ACCIONES</th></tr></thead><tbody>
           {filteredPeople.map((person) => <tr key={person.id}>
-            <td className="person-cell"><span className="tiny-avatar">{person.name[0]}</span>{person.name}</td>
+            <td className="person-cell"><span className="tiny-avatar">{person.name[0]}</span><span>{person.name}{person.notes && <span className="method">{person.notes}</span>}</span></td>
             <td>{person.carnet || '—'}</td>
             <td>{person.phone || '—'}</td>
             <td>{money(person.total)}<span className="method">{person.count} recibos</span></td>
             <td>{person.totalDue > 0 ? <b className="rose-text">{money(person.totalDue)}</b> : <span className="status">Al día</span>}</td>
             <td>{person.events.length === 0 ? '—' : <div className="event-mini-list">{person.events.map((ev) => <span key={ev.event} className={`status ${ev.standing === 'menos-mitad' ? 'void' : ''}`}>{ev.event}: {ev.price ? `${money(ev.paid)} / ${money(ev.price)}` : money(ev.paid)}</span>)}</div>}</td>
-            <td><button className="status-toggle" onClick={() => removePerson(person.id)}>Quitar</button></td>
+            <td><div className="row-actions">
+              <button className="status-toggle" onClick={() => startEditPerson(person)}>Editar</button>
+              <button className="status-toggle danger" onClick={() => askRemovePerson(person)}>Eliminar</button>
+            </div></td>
           </tr>)}
+          {filteredPeople.length === 0 && <tr><td className="empty-cell" colSpan={7}>{people.length === 0 ? 'Aún no hay clientes en el directorio. Agrega el primero con el formulario de arriba o desde las sugerencias de abajo.' : 'Ningún cliente coincide con la búsqueda.'}</td></tr>}
         </tbody></table></div>
+        <div className="table-note">Eliminar un cliente solo lo quita del directorio: sus recibos siguen guardados en Ingresos y, si vuelve a pagar, puedes registrarlo otra vez desde las sugerencias de abajo.</div>
         {undirectoried.length > 0 && <div className="chip-list">
           {undirectoried.map((entry) => <div className="chip" key={entry.name}><div><strong>{entry.name}</strong><small>{[entry.carnet && `Carnet ${entry.carnet}`, entry.phone && `Tel. ${entry.phone}`].filter(Boolean).join(' · ')}{(entry.carnet || entry.phone) ? ' · ' : ''}Ya tiene recibos, aún no está en el directorio</small></div><button onClick={() => registerPayer(entry.name, entry.carnet, entry.phone)} aria-label={`Agregar ${entry.name}`}>＋</button></div>)}
         </div>}
@@ -610,6 +653,36 @@ function App() {
       <div className="form-row"><label>Efectivo (Bs)<input type="number" value={expenseForm.cash} onChange={(event) => setExpenseForm({ ...expenseForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={expenseForm.qr} onChange={(event) => setExpenseForm({ ...expenseForm, qr: event.target.value })} placeholder="0.00" /></label></div>
       <div className="payment-note">Puedes combinar efectivo y QR en un mismo egreso. La categoría es libre; las sugerencias solo ayudan a escribir más rápido.</div>
       <button className="primary-button full" onClick={saveExpense}>Guardar y emitir comprobante <span>→</span></button>
+    </div></div>}
+
+      {/* Ficha del cliente para corregir nombre, carnet, teléfono o notas */}
+    {editingPersonId && <div className="modal-backdrop" onClick={closeEditPerson}><div className="modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-title"><div><span className="eyebrow">EDITAR CLIENTE</span><h2>Ficha del cliente</h2></div><button className="close-button" onClick={closeEditPerson}>×</button></div>
+      <label>Nombre<input value={personEditForm.name} onChange={(event) => setPersonEditForm({ ...personEditForm, name: event.target.value })} placeholder="Nombre completo" /></label>
+      <label>N.º de carnet<input value={personEditForm.carnet} onChange={(event) => setPersonEditForm({ ...personEditForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
+      <label>Teléfono<input value={personEditForm.phone} onChange={(event) => setPersonEditForm({ ...personEditForm, phone: event.target.value })} placeholder="Opcional" /></label>
+      <label>Notas<input value={personEditForm.notes} onChange={(event) => setPersonEditForm({ ...personEditForm, notes: event.target.value })} placeholder="Opcional" /></label>
+      {personMessage && <div className="form-message">{personMessage}</div>}
+      <div className="payment-note">Si corriges el nombre, los recibos ya emitidos a este cliente se actualizan para que su historial y sus totales se mantengan. Si el nuevo nombre ya tiene recibos propios, se unirán en un solo historial. También se completan el carnet y el teléfono en los recibos que estaban sin esos datos.</div>
+      <button className="primary-button full" onClick={savePersonEdit}>Guardar cambios <span>→</span></button>
+    </div></div>}
+
+    {/* Confirmación antes de quitar un cliente del directorio */}
+    {pendingDelete && <div className="modal-backdrop" onClick={() => setPendingDelete(null)}><div className="modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-title"><div><span className="eyebrow">ELIMINAR CLIENTE</span><h2>¿Quitar a {pendingDelete.name}?</h2></div><button className="close-button" onClick={() => setPendingDelete(null)}>×</button></div>
+      {pendingDeleteRecord && <div className="lookup-card">
+        <div className="lookup-head"><strong>{pendingDeleteRecord.name}</strong>{pendingDeleteRecord.carnet && <span>Carnet {pendingDeleteRecord.carnet}</span>}{pendingDeleteRecord.phone && <span>Tel. {pendingDeleteRecord.phone}</span>}</div>
+        <div className="lookup-stats">
+          <span>Recibos: <b>{pendingDeleteRecord.count}</b></span>
+          <span>Pagado: <b>{money(pendingDeleteRecord.total)}</b></span>
+          <span>Deuda: <b className={pendingDeleteRecord.totalDue > 0 ? 'rose-text' : ''}>{pendingDeleteRecord.totalDue > 0 ? money(pendingDeleteRecord.totalDue) : 'Al día'}</b></span>
+        </div>
+      </div>}
+      <div className="payment-note">Se quita solo del directorio de clientes: sus recibos quedan guardados en Ingresos, así que el historial y las cuentas no cambian. Si vuelve a pagar, puedes agregarlo otra vez desde las sugerencias de la página Clientes.</div>
+      <div className="modal-actions-row">
+        <button className="outline-button full" onClick={() => setPendingDelete(null)}>Cancelar</button>
+        <button className="danger-button full" onClick={confirmRemovePerson}>Eliminar del directorio</button>
+      </div>
     </div></div>}
 
     {showReceipt && selectedReceipt && <div className="modal-backdrop" onClick={() => setShowReceipt(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
