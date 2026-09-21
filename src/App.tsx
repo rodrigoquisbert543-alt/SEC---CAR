@@ -836,11 +836,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Resto del componente App */}
-      </div>
-    </>
-  )
-}
+
 
 export default App
 

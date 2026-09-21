@@ -1,0 +1,228 @@
+[33mcommit e4d60805ae6672f567937d2db2612529ae473838[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Mon Sep 21 11:18:24 2026 -0400
+
+    Corrección
+
+[33mcommit f79948ba3c71b47c972d8b4a5fbc25a3ce58a90d[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Mon Sep 21 11:07:13 2026 -0400
+
+    Administrador
+
+[33mcommit 95934fd221b74f8634851db9ce32fa82e975f705[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Mon Sep 21 09:51:14 2026 -0400
+
+    Variables
+
+[33mcommit ffb3a955f008043e5425c9c79be854be7f3b1c41[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Mon Sep 21 09:43:28 2026 -0400
+
+    Administrador
+
+[33mcommit 78420da4dc4d206f0c82f16e065142a311391ff8[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Fri Sep 18 11:29:37 2026 -0400
+
+    Clientes: se puede editar la ficha (nombre, carnet, telefono, notas) y eliminar con confirmacion. Al corregir el nombre se actualizan los recibos de ese cliente para no perder historial ni totales; se avisa cuantos recibos y cuanto tiene antes de borrar, y se agrego el aviso de que eliminar solo lo quita del directorio
+
+[33mcommit cdac03ff4e57038715747d5aefad1b08efb7542b[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Fri Sep 18 10:23:58 2026 -0400
+
+    Modo oscuro: los campos de fecha del filtro se ven correctamente (fondo, texto e icono del calendario con color-scheme); en claro se fija color-scheme light
+
+[33mcommit d4c22be78959e26cb5afff58783eef305c7e8fdd[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Fri Sep 18 09:53:40 2026 -0400
+
+    Mensaje descriptivo de los cambiosos
+
+[33mcommit dc70080c88ccf0992eac373f946c634d9253ebae[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Fri Sep 18 09:37:24 2026 -0400
+
+    actualiza
+
+[33mcommit 5a0e1af43549443a628a81754fff90f720e3209c[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Fri Sep 18 09:11:52 2026 -0400
+
+    actualizacion
+
+[33mcommit 15d65a0d157ac221973a0623bd0151c25b0405dc[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Fri Sep 18 08:44:25 2026 -0400
+
+    actualización
+
+[33mcommit 491b6155f8975106c7e5a065e9a368e4e134f289[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 18:20:47 2026 -0400
+
+    Impresion con letras grandes sin recortar firmas: se quito la altura fija/overflow:hidden del comprobante y se ajustaron los tamanos de impresion para que quepan completos, y se corrigio CSS duplicado
+
+[33mcommit 1ca93fb80c028825076be5d157d70282e6496387[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 18:15:42 2026 -0400
+
+    Fix: las firmas ya no se recortan al imprimir. Se compacto la tipografia de impresion del recibo (independiente del tamano en pantalla) para que quepa todo, incluida la firma, dentro de la mitad superior de la hoja carta
+
+[33mcommit ba293b09c6f9497ee386fd952d9a6e449f92a46c[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 18:03:55 2026 -0400
+
+    Sugerencias en Ingresos/Egresos solo aparecen al escribir (no al hacer clic); al elegir nombre/carnet/telefono de un cliente existente se autocompletan los demas datos. Firmas de comprobantes ya cumplian lo pedido (original: solo admin, copia: ambas firmas)
+
+[33mcommit 3fde150c23b7cc21b97f5965c88752932878f208[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 17:59:11 2026 -0400
+
+    Corrige tipo Payment roto (cellphone invalido dejado por edicion manual); el comprobante muestra N. de carnet y N. de celular usando el campo phone
+
+[33mcommit e1a95cf362aac8a83444a59587031fcd1e46770b[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 16:51:41 2026 -0400
+
+    El telefono ahora tiene la misma importancia que el carnet: se captura al emitir un recibo, se guarda en el pago, se muestra en el comprobante, se busca/filtra en Ingresos, Clientes y Eventos, con sugerencias de autocompletado y sin perderse al registrar clientes desde recibos existentes
+
+[33mcommit 30fc5dacac1c1cd20de29289f941c4823835851c[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 16:43:51 2026 -0400
+
+    Agranda letras del comprobante, quita firma de INTERESADO en el original del cliente/beneficiario, corrige recibo sin titulo, renombra Personas a Clientes, corrige perdida de carnet al registrar cliente desde recibos existentes, y agrega sugerencias de nombre/carnet al emitir un recibo
+
+[33mcommit 473fbe24155e5c77147e561a1a001935d53a1a16[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 15:31:20 2026 -0400
+
+    Fix: el comprobante al imprimir ahora ocupa todo el ancho de la hoja carta (el modal-backdrop no se estiraba dentro del contenedor flex, quedando alineado a la izquierda)
+
+[33mcommit c92503430830cdcf58b1e4c57c7e0a9532215fa8[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 14:47:02 2026 -0400
+
+    Fix: el modal de comprobantes (2 copias) ahora hace scroll interno para que en pantallas pequenas se puedan ver los botones de Imprimir y Enviar por WhatsApp
+
+[33mcommit f1530bf82f5e9c7a8b2352055d4c3131402b5064[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 12:21:48 2026 -0400
+
+    Agrega boton de cerrar sesion en el perfil del sidebar
+
+[33mcommit c087761cc5eb4515f101701532eb60a82358645f[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 12:17:18 2026 -0400
+
+    Renombra usuarios a Melitza Huanca y Ovet Zuniga; restringe la gestion de eventos (crear/editar precio/quitar) solo a Ovet Zuniga, con migracion de datos antiguos
+
+[33mcommit 45494eed246c188e1033c0723a5c3b9259f3fb44[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 12:05:51 2026 -0400
+
+    Usa el logo sin fondo (PNG transparente) en el sistema y en los comprobantes impresos
+
+[33mcommit 96498344cb781a29ac8df3016f8704d5d67874bf[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 11:27:41 2026 -0400
+
+    Impresion de comprobantes en tamano carta, usando solo la mitad superior de la hoja (2 copias lado a lado)
+
+[33mcommit 71a0a3fad7644b4e13bfd899298961eaac6ef2a5[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 11:23:41 2026 -0400
+
+    Firma con nombre y apellido: INTERESADO (quien paga/recibe) y ADMINISTRADOR (usuario logueado), editable en Reportes
+
+[33mcommit 2018c5ad02c51ddb4160ae4c8b6d9773890a0bcd[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 11:18:37 2026 -0400
+
+    Genera e imprime 2 copias completas del recibo/comprobante (cliente/beneficiario y administracion) con linea de corte
+
+[33mcommit 6b3696c937eda7add6a5938b5d5ab6fe146851d5[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 10:17:31 2026 -0400
+
+    Personaliza colores del sistema segun el logo (verde y dorado del sello SEC-CAR)
+
+[33mcommit 7f6fcb1ac7c571983be46cd52ca5b7acd65faeb2[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Thu Sep 17 10:08:08 2026 -0400
+
+    Agrega firmas en comprobantes, carnet y deudas por persona/evento, atajo de busqueda en ingresos y envio de comprobante por WhatsApp
+
+[33mcommit 1c4d1b9278b4c3f307f5b5b07d84fa6cd44e744f[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 19:29:16 2026 -0400
+
+    Agregar exportacion de historial (CSV) y opcion de vaciar historial con confirmacion
+
+[33mcommit ad29780116f19b2da27a7b439bebdd4e74f5fc40[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 19:04:10 2026 -0400
+
+    Agregar modo oscuro/claro y restringir anulacion de recibos/egresos al usuario que los emitio
+
+[33mcommit 621c3e9fa3d0c503c23fb6c5db58ec0b27322dc0[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 18:51:33 2026 -0400
+
+    Corregir superposicion del nombre en el sidebar en pantallas moviles
+
+[33mcommit ea77cdb6d6b448c2ccc02dead297cfe7753ab3e9[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 18:46:11 2026 -0400
+
+    Corregir nombre a Seminario de Educacion Cristiana
+
+[33mcommit 26108e8c236ada2fcc6beccb820d69df78abf2a7[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 18:41:38 2026 -0400
+
+    Sistema completo de ingresos y egresos: modulo de egresos, eventos y personas, conceptos libres con sugerencias, persistencia local
+
+[33mcommit baa515996dd409d03fc0897e8ae3e918bf5e7bf7[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 18:15:20 2026 -0400
+
+    Agregar logo institucional real como favicon y marca
+
+[33mcommit 82df9c5e9e398cf562bb98fa3c208c478085e76d[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 18:08:15 2026 -0400
+
+    Paleta mas colorida (verde y dorado) inspirada en el logo institucional
+
+[33mcommit 2d3baba63166be64403a722b507c948f79798e1d[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 18:02:54 2026 -0400
+
+    Clave admin configurable por variable de entorno y detalle cristiano en login
+
+[33mcommit bf0ec4c7a37e1bb04b4fbbd26a04e62f9dd2f975[m
+Merge: 6e5a8c7 55f8e91
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 17:52:35 2026 -0400
+
+    Merge remote main, keep local src/public and files
+
+[33mcommit 6e5a8c73a4ac193e6bdb146230a0763d1633bb4f[m
+Author: Rodrigo Quisbert Mamani <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 17:52:35 2026 -0400
+
+    Add missing src and public directories
+
+[33mcommit 55f8e9154a98cedf307de48684000c8071536d35[m
+Author: rodrigoquisbert543-alt <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 17:36:07 2026 -0400
+
+    Add files via upload
+
+[33mcommit 68130538bef208e2b2645b0fe78fe607d55cb63f[m
+Author: rodrigoquisbert543-alt <rodrigoquisbert543@gmail.com>
+Date:   Wed Sep 16 17:35:11 2026 -0400
+
+    Initial commit
