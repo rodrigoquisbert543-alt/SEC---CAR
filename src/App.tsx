@@ -790,6 +790,9 @@ export default function App() {
             </div>
           </div>
         )}
+      </main>
+
+      {/* MODALES */}
 
             {/* Sección de Permisos para cada Usuario */}
             <div className="user-section">
