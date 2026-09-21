@@ -957,7 +957,7 @@ const persist = (newAccounts: Account[]) => {
             </div>
           </div>
         )}
-      </main>
+
 
       {/* MODAL NUEVO INGRESO */}
       {showIncomeModal && (
@@ -969,6 +969,7 @@ const persist = (newAccounts: Account[]) => {
             <input type="text" placeholder="Teléfono / Celular" value={incomeForm.phone} onChange={(e) => fillIncomeField('phone', e.target.value)} />
             <input type="text" placeholder="Concepto (Ej. Campamento juvenil)" value={incomeForm.concept} onChange={(e) => setIncomeForm({ ...incomeForm, concept: e.target.value })} />
             <div className="form-row">
+
               <input type="number" placeholder="Efectivo Bs" value={incomeForm.cash} onChange={(e) => setIncomeForm({ ...incomeForm, cash: e.target.value })} />
               <input type="number" placeholder="QR Bs" value={incomeForm.qr} onChange={(e) => setIncomeForm({ ...incomeForm, qr: e.target.value })} />
             </div>
