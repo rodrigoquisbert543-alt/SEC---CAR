@@ -791,55 +791,21 @@ export default function App() {
           </div>
         )}
       </main>
-      </main>
-
 
       {/* MODALES */}
-
-            {/* Sección de Permisos para cada Usuario */}
-            <div className="user-section">
-              <h3>Gestión de Permisos</h3>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Usuario</th>
-                    <th>Nombre Completo</th>
-                    <th>Estado</th>
-                    <th>Permisos</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accounts.map((acc) => (
-                    <tr key={acc.name}>
-                      <td>{acc.name}</td>
-                      <td>{acc.fullName || '-'}</td>
-                      <td>{acc.enabled ? 'Activo' : 'Inactivo'}</td>
-                      <td>
-                        <label><input type="checkbox" checked={acc.permissions?.income} onChange={(e) => handlePermissionChange(acc.name, 'income', e.target.checked)} /> Ingresos</label>
-                        <label><input type="checkbox" checked={acc.permissions?.expenses} onChange={(e) => handlePermissionChange(acc.name, 'expenses', e.target.checked)} /> Egresos</label>
-                        <label><input type="checkbox" checked={acc.permissions?.events} onChange={(e) => handlePermissionChange(acc.name, 'events', e.target.checked)} /> Eventos</label>
-                        <label><input type="checkbox" checked={acc.permissions?.clients} onChange={(e) => handlePermissionChange(acc.name, 'clients', e.target.checked)} /> Clientes</label>
-                      </td>
-                      <td>
-                        <button onClick={() => handleEditUser(acc)}>Editar</button>
-                        <button onClick={() => toggleUserEnabled(acc.name)} className="btn-status">
-                          {acc.enabled ? 'Desactivar' : 'Activar'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-                  <button type="submit" className="btn-primary">Actualizar Usuario</button>
-                  <button type="button" onClick={() => setEditingUser(null)}>Cancelar Edición</button>
-                </form>
-              </div>
-            )}
+      {editingUser && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h3>Editar Usuario</h3>
+            <form onSubmit={handleUpdateUser}>
+              <input type="text" value={editUserForm.fullName} onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })} placeholder="Nombre Completo" />
+              <input type="password" value={editUserForm.password} onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })} placeholder="Nueva Contraseña (opcional)" />
+              <button type="submit" className="btn-primary">Actualizar Usuario</button>
+              <button type="button" onClick={() => setEditingUser(null)}>Cancelar Edición</button>
+            </form>
           </div>
-        )}
+        </div>
+      )}
 
 
 
