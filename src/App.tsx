@@ -757,6 +757,39 @@ export default function App() {
                   <input type="text" placeholder="Nombre de usuario" value={editingUser.name} readOnly />
                   <input type="text" placeholder="Nombre completo (Firma)" value={editUserForm.fullName} onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })} required />
                   <input type="password" placeholder="Nueva Contraseña" value={editUserForm.password} onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })} />
+                  <button type="submit" className="btn-primary">Actualizar Usuario</button>
+                  <button type="button" onClick={() => setEditingUser(null)}>Cancelar Edición</button>
+                </form>
+              </div>
+            )}
+
+            {/* Sección de Permisos para cada Usuario */}
+            <div className="user-section">
+              <h3>Gestión de Permisos</h3>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Permisos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accounts.map((acc) => (
+                    <tr key={acc.name}>
+                      <td>{acc.name}</td>
+                      <td>
+                        <label><input type="checkbox" checked={acc.permissions?.income} onChange={(e) => handlePermissionChange(acc.name, 'income', e.target.checked)} /> Ingresos</label>
+                        <label><input type="checkbox" checked={acc.permissions?.expenses} onChange={(e) => handlePermissionChange(acc.name, 'expenses', e.target.checked)} /> Egresos</label>
+                        <label><input type="checkbox" checked={acc.permissions?.events} onChange={(e) => handlePermissionChange(acc.name, 'events', e.target.checked)} /> Eventos</label>
+                        <label><input type="checkbox" checked={acc.permissions?.clients} onChange={(e) => handlePermissionChange(acc.name, 'clients', e.target.checked)} /> Clientes</label>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
             {/* Sección de Permisos para cada Usuario */}
             <div className="user-section">
