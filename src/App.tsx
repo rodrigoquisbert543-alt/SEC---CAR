@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import './App.css'
 
@@ -8,7 +8,7 @@ type Account = { name: string; password: string; needsPassword: boolean; fullNam
 
 const defaultAccounts: Account[] = [
   { name: 'Melitza Huanca', password: '', needsPassword: true, fullName: '' },
-  { name: 'Ovet Zúñiga', password: '', needsPassword: true, fullName: '', enabled: true, permissions: { income: true, expenses: true, events: true, clients: true, users: true } },
+  { name: 'Ovet ZÃºÃ±iga', password: '', needsPassword: true, fullName: '', enabled: true, permissions: { income: true, expenses: true, events: true, clients: true, users: true } },
 ]
 const accountsKey = 'sec-car-accounts'
 const defaultPermissions: AccountPermissions = { income: true, expenses: true, events: false, clients: true, users: false }
@@ -16,7 +16,7 @@ const defaultPermissions: AccountPermissions = { income: true, expenses: true, e
 const getPermissions = (account?: Account): AccountPermissions => ({ ...defaultPermissions, ...account?.permissions })
 const isAccountEnabled = (account?: Account) => account?.enabled !== false
 const adminResetKey = import.meta.env.VITE_ADMIN_RESET_KEY || 'SEC-CAR-ADMIN'
-const legacyNameMap: Record<string, string> = { Melitza: 'Melitza Huanca', Ovet: 'Ovet Zúñiga' }
+const legacyNameMap: Record<string, string> = { Melitza: 'Melitza Huanca', Ovet: 'Ovet ZÃºÃ±iga' }
 const migrateAccountName = (name: string): string => legacyNameMap[name] || name
 
 function readAccounts(): Account[] {
@@ -78,22 +78,22 @@ const standingOf = (paid: number, price: number): PaymentStanding => {
 
 const initialPayments: Payment[] = [
   { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', carnet: '', phone: '', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
-  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', carnet: '', phone: '', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
-  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', carnet: '', phone: '', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
-  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', carnet: '', phone: '', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
+  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', carnet: '', phone: '', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet ZÃºÃ±iga' },
+  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', carnet: '', phone: '', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet ZÃºÃ±iga' },
+  { id: '4', receipt: 'REC-00238', person: 'MarÃ­a Elena Ruiz', carnet: '', phone: '', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
 ]
 
 const initialExpenses: Expense[] = [
-  { id: 'e1', voucher: 'EGR-00032', concept: 'Pago de electricidad', recipient: 'ENDE', category: 'Servicios básicos', date: '2024-06-09', amount: 145, cash: 145, qr: 0, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
-  { id: 'e2', voucher: 'EGR-00031', concept: 'Materiales para campamento', recipient: 'Ferretería Central', category: 'Materiales y suministros', date: '2024-06-07', amount: 210, cash: 60, qr: 150, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
+  { id: 'e1', voucher: 'EGR-00032', concept: 'Pago de electricidad', recipient: 'ENDE', category: 'Servicios bÃ¡sicos', date: '2024-06-09', amount: 145, cash: 145, qr: 0, status: 'Aplicado', issuedBy: 'Ovet ZÃºÃ±iga' },
+  { id: 'e2', voucher: 'EGR-00031', concept: 'Materiales para campamento', recipient: 'FerreterÃ­a Central', category: 'Materiales y suministros', date: '2024-06-07', amount: 210, cash: 60, qr: 150, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
 ]
 
 const initialEventOptions = ['Campamento juvenil', 'Seminario de liderazgo', 'Retiro de damas 2024']
-const initialCategoryOptions = ['Servicios básicos', 'Mantenimiento', 'Materiales y suministros', 'Alimentación', 'Transporte', 'Honorarios', 'Otros']
+const initialCategoryOptions = ['Servicios bÃ¡sicos', 'Mantenimiento', 'Materiales y suministros', 'AlimentaciÃ³n', 'Transporte', 'Honorarios', 'Otros']
 const initialPeople: Person[] = []
 const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Clientes', 'Usuarios'] as const
-const eventManager: Account['name'] = 'Ovet Zúñiga'
-const systemAdmin: Account['name'] = 'Ovet Zúñiga'
+const eventManager: Account['name'] = 'Ovet ZÃºÃ±iga'
+const systemAdmin: Account['name'] = 'Ovet ZÃºÃ±iga'
 
 function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void }) {
   const [accounts, setAccounts] = useState(readAccounts)
@@ -116,24 +116,24 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
 
   const submit = () => {
     if (!isAccountEnabled(current)) {
-      setMessage('Esta cuenta está deshabilitada. Contacta al administrador.')
+      setMessage('Esta cuenta estÃ¡ deshabilitada. Contacta al administrador.')
       return
     }
     if (mode === 'first') {
-      if (!fullName.trim()) { setMessage('Escribe tu nombre y apellido; aparecerá en la firma de los comprobantes.'); return }
-      if (password.length < 6 || password !== confirm) { setMessage('La contraseña debe tener 6 caracteres y coincidir en ambos campos.'); return }
+      if (!fullName.trim()) { setMessage('Escribe tu nombre y apellido; aparecerÃ¡ en la firma de los comprobantes.'); return }
+      if (password.length < 6 || password !== confirm) { setMessage('La contraseÃ±a debe tener 6 caracteres y coincidir en ambos campos.'); return }
       persist(accounts.map((account) => account.name === selected ? { ...account, password, needsPassword: false, fullName: fullName.trim() } : account))
-      setMessage('Contraseña creada. Ya puedes ingresar a SEC-CAR.')
+      setMessage('ContraseÃ±a creada. Ya puedes ingresar a SEC-CAR.')
       setMode('login'); setPassword(''); setConfirm(''); setFullName(''); return
     }
     if (password && password === current.password && !current.needsPassword) { onLogin(selected); return }
-    setMessage('La contraseña no coincide. Si la olvidaste, usa “Recuperar acceso”.')
+    setMessage('La contraseÃ±a no coincide. Si la olvidaste, usa â€œRecuperar accesoâ€.')
   }
 
   const resetAccess = () => {
     if (password !== adminResetKey) { setMessage('Para restablecer accesos usa la clave administrativa definida por el responsable.'); return }
     persist(accounts.map((account) => account.name === selected ? { ...account, password: '', needsPassword: true } : account))
-    setPassword(''); setMessage(`Acceso de ${selected} reiniciado. Deberá crear una contraseña nueva al ingresar.`); setMode('login')
+    setPassword(''); setMessage(`Acceso de ${selected} reiniciado. DeberÃ¡ crear una contraseÃ±a nueva al ingresar.`); setMode('login')
   }
 
   return (
@@ -141,17 +141,17 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
       <div className="auth-panel">
         <div className="auth-brand">
           <div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div>
-          <div><strong>SEC-CAR</strong><span>Seminario de Educación Cristiana Caranavi</span></div>
+          <div><strong>SEC-CAR</strong><span>Seminario de EducaciÃ³n Cristiana Caranavi</span></div>
         </div>
         <div className="auth-copy">
           <span className="eyebrow">ACCESO PRIVADO</span>
-          <h1>{mode === 'recovery' ? 'Recuperar acceso' : mode === 'first' ? 'Crea tu contraseña' : 'Bienvenido de nuevo'}</h1>
-          <p>{mode === 'recovery' ? 'El responsable puede reiniciar el acceso de una de las cuentas autorizadas.' : mode === 'first' ? `Es la primera vez que ingresa ${selected}. Define una contraseña personal para continuar.` : 'Ingresa con tu cuenta para registrar y consultar los movimientos del centro.'}</p>
+          <h1>{mode === 'recovery' ? 'Recuperar acceso' : mode === 'first' ? 'Crea tu contraseÃ±a' : 'Bienvenido de nuevo'}</h1>
+          <p>{mode === 'recovery' ? 'El responsable puede reiniciar el acceso de una de las cuentas autorizadas.' : mode === 'first' ? `Es la primera vez que ingresa ${selected}. Define una contraseÃ±a personal para continuar.` : 'Ingresa con tu cuenta para registrar y consultar los movimientos del centro.'}</p>
         </div>
         {mode !== 'recovery' && (
           <>
             <div className="user-picker">
-              <span>¿Quién eres?</span>
+              <span>Â¿QuiÃ©n eres?</span>
               <div>
                 {accounts.filter(isAccountEnabled).map((account) => (
                   <div key={account.name} role="button" tabIndex={0} className={selected === account.name ? 'user-choice selected' : 'user-choice'} onClick={() => chooseUser(account.name)}>
@@ -160,18 +160,18 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
                       <input type="file" accept="image/*" onChange={(event) => uploadAvatar(account.name, event.target.files?.[0])} />
                     </label>
                     <span><strong>{account.name}</strong><small>{account.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small></span>
-                    {selected === account.name && <b>✓</b>}
+                    {selected === account.name && <b>âœ“</b>}
                   </div>
                 ))}
               </div>
             </div>
             {mode === 'first' && <label className="auth-label">Nombre y apellido<input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Huanca" /></label>}
-            <label className="auth-label">{mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" /></label>
-            {mode === 'first' && <label className="auth-label">Confirmar contraseña<input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseña" /></label>}
+            <label className="auth-label">{mode === 'first' ? 'Nueva contraseÃ±a' : 'ContraseÃ±a'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="MÃ­nimo 6 caracteres" /></label>
+            {mode === 'first' && <label className="auth-label">Confirmar contraseÃ±a<input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseÃ±a" /></label>}
             <button className="auth-submit" onClick={() => current.needsPassword && mode === 'login' ? setMode('first') : submit()}>
-              {current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span>
+              {current.needsPassword && mode === 'login' ? 'Crear mi contraseÃ±a' : mode === 'first' ? 'Guardar contraseÃ±a' : 'Ingresar al sistema'} <span>â†’</span>
             </button>
-            <button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button>
+            <button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>OlvidÃ© mi contraseÃ±a</button>
           </>
         )}
         {mode === 'recovery' && (
@@ -186,18 +186,18 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
                 ))}
               </div>
               <label className="auth-label">Clave administrativa<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="La define el responsable" /></label>
-              <button className="auth-submit" onClick={resetAccess}>Reiniciar acceso de {selected} <span>↻</span></button>
+              <button className="auth-submit" onClick={resetAccess}>Reiniciar acceso de {selected} <span>â†»</span></button>
             </div>
             <button className="auth-link" onClick={() => { setMode('login'); setPassword(''); setMessage('') }}>Volver al ingreso</button>
           </>
         )}
         {message && <div className="auth-message">{message}</div>}
         <div className="auth-footer"><span className="sync-dot"></span> Sistema listo para sincronizar</div>
-        <p className="auth-verse">"Todo lo que hagáis, hacedlo de corazón, como para el Señor y no para los hombres" — Colosenses 3:23<br />"Se requiere que el administrador, sea hallado fiel" — 1 Corintios 4:2</p>
+        <p className="auth-verse">"Todo lo que hagÃ¡is, hacedlo de corazÃ³n, como para el SeÃ±or y no para los hombres" â€” Colosenses 3:23<br />"Se requiere que el administrador, sea hallado fiel" â€” 1 Corintios 4:2</p>
       </div>
       <div className="auth-visual">
         <div className="visual-note"><span>CONTROL FINANCIERO</span><strong>Recibos claros.<br />Cuentas en orden.</strong><p>Ingresos, egresos y pagos parciales en un solo lugar.</p></div>
-        <div className="visual-receipt"><small>SEC-CAR · RECIBO DE PAGO</small><strong>Bs 250.00</strong><span>ORIGINAL + COPIA ADMINISTRACIÓN</span></div>
+        <div className="visual-receipt"><small>SEC-CAR Â· RECIBO DE PAGO</small><strong>Bs 250.00</strong><span>ORIGINAL + COPIA ADMINISTRACIÃ“N</span></div>
       </div>
     </div>
   )
@@ -245,7 +245,7 @@ export default function App() {
   const voucherPaperRef = useRef<HTMLDivElement | null>(null)
   const [sharingReceipt, setSharingReceipt] = useState(false)
 
-  // Administración de usuarios
+  // AdministraciÃ³n de usuarios
   const [newUserForm, setNewUserForm] = useState({ name: '', fullName: '', password: '' })
   const [userMessage, setUserMessage] = useState('')
 
@@ -287,41 +287,41 @@ export default function App() {
         const link = document.createElement('a')
         link.href = url; link.download = fileName; link.click()
         URL.revokeObjectURL(url)
-        window.open(`https://wa.me/?text=${encodeURIComponent(`${caption} (imagen descargada, adjúntala en WhatsApp)`)}`, '_blank')
+        window.open(`https://wa.me/?text=${encodeURIComponent(`${caption} (imagen descargada, adjÃºntala en WhatsApp)`)}`, '_blank')
       }
     } finally {
       setSharingReceipt(false)
     }
   }
 
-  const renderReceiptCopy = (payment: Payment, copy: 'cliente' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
+  const renderReceiptCopy = (payment: Payment, copy: 'cliente' | 'administraciÃ³n', ref?: React.RefObject<HTMLDivElement | null>) => (
     <div className="receipt-paper" ref={ref}>
-      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana Caranavi</small></div>
+      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de EducaciÃ³n Cristiana Caranavi</small></div>
       <div className="receipt-type">RECIBO DE PAGO <strong>{payment.receipt}</strong></div>
-      <div className="receipt-line"><span>Recibí de:</span><b>{payment.person}</b></div>
-      {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
-      {payment.phone && <div className="receipt-line"><span>N.º de celular:</span><b>{payment.phone}</b></div>}
+      <div className="receipt-line"><span>RecibÃ­ de:</span><b>{payment.person}</b></div>
+      {payment.carnet && <div className="receipt-line"><span>N.Âº de carnet:</span><b>{payment.carnet}</b></div>}
+      {payment.phone && <div className="receipt-line"><span>N.Âº de celular:</span><b>{payment.phone}</b></div>}
       <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
       <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
-      <div className="signature-row">{copy === 'administración' && <div className="signature-col"><span className="signature-name">{payment.person}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(payment.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
-      <div className="copy-mark">{copy === 'cliente' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
+      <div className="signature-row">{copy === 'administraciÃ³n' && <div className="signature-col"><span className="signature-name">{payment.person}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(payment.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
+      <div className="copy-mark">{copy === 'cliente' ? 'ORIGINAL' : 'COPIA'} <span>Â·</span> PARA {copy.toUpperCase()}</div>
     </div>
   )
 
-  const renderVoucherCopy = (expense: Expense, copy: 'beneficiario' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
+  const renderVoucherCopy = (expense: Expense, copy: 'beneficiario' | 'administraciÃ³n', ref?: React.RefObject<HTMLDivElement | null>) => (
     <div className="receipt-paper" ref={ref}>
-      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana Caranavi</small></div>
+      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de EducaciÃ³n Cristiana Caranavi</small></div>
       <div className="receipt-type">COMPROBANTE DE EGRESO <strong>{expense.voucher}</strong></div>
       <div className="receipt-line"><span>Pagado a:</span><b>{expense.recipient}</b></div>
       <div className="receipt-line"><span>Concepto:</span><b>{expense.concept}</b></div>
-      <div className="receipt-line"><span>Categoría:</span><b>{expense.category}</b></div>
+      <div className="receipt-line"><span>CategorÃ­a:</span><b>{expense.category}</b></div>
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(expense.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(expense.amount)}</strong></div>
       <div className="receipt-methods"><span>Efectivo {money(expense.cash)}</span><span>QR {money(expense.qr)}</span></div>
-      <div className="signature-row">{copy === 'administración' && <div className="signature-col"><span className="signature-name">{expense.recipient}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(expense.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
-      <div className="copy-mark">{copy === 'beneficiario' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
+      <div className="signature-row">{copy === 'administraciÃ³n' && <div className="signature-col"><span className="signature-name">{expense.recipient}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(expense.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
+      <div className="copy-mark">{copy === 'beneficiario' ? 'ORIGINAL' : 'COPIA'} <span>Â·</span> PARA {copy.toUpperCase()}</div>
     </div>
   )
 
@@ -433,7 +433,7 @@ export default function App() {
     setExpenseForm({ concept: '', recipient: '', category: '', cash: '', qr: '' })
   }
 
-  // Anulación y reactivación
+  // AnulaciÃ³n y reactivaciÃ³n
   const toggleIncomeStatus = (id: string) => {
     setPayments((prev) =>
       prev.map((payment) =>
@@ -450,7 +450,7 @@ export default function App() {
     )
   }
 
-  // Administración de usuarios
+  // AdministraciÃ³n de usuarios
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newUserForm.name.trim()) {
@@ -486,7 +486,7 @@ export default function App() {
         acc.name === name ? { ...acc, password: newPass, needsPassword: !newPass } : acc
       )
     )
-    setUserMessage(`Contraseña actualizada para ${name}`)
+    setUserMessage(`ContraseÃ±a actualizada para ${name}`)
   }
 
   const saveFullName = () => {
@@ -516,7 +516,7 @@ export default function App() {
           <img src="/logo-seccar.png" alt="SEC-CAR" />
           <div>
             <strong>SEC-CAR</strong>
-            <span>Seminario de Educación Cristiana Caranavi</span>
+            <span>Seminario de EducaciÃ³n Cristiana Caranavi</span>
           </div>
         </div>
         <nav className="header-nav">
@@ -531,7 +531,7 @@ export default function App() {
         </nav>
         <div className="header-user">
           <button className="theme-toggle" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
-            {theme === 'light' ? '🌙' : '☀️'}
+            {theme === 'light' ? 'ðŸŒ™' : 'â˜€ï¸'}
           </button>
           <span>{loggedUser}</span>
           <button className="logout-btn" onClick={() => setLoggedUser(null)}>Salir</button>
@@ -557,7 +557,7 @@ export default function App() {
       </section>
 
       <main className="app-content">
-        {/* PÁGINA RESUMEN */}
+        {/* PÃGINA RESUMEN */}
         {activePage === 'Resumen' && (
           <div className="page-grid">
             <div className="card-stat"><h3>Ingresos del mes</h3><strong>{money(incomeThisMonth)}</strong></div>
@@ -568,7 +568,7 @@ export default function App() {
               <h3>Movimientos Recientes</h3>
               <table className="data-table">
                 <thead>
-                  <tr><th>Código</th><th>Fecha</th><th>Tipo</th><th>Persona / Proveedor</th><th>Concepto</th><th>Monto</th><th>Estado</th></tr>
+                  <tr><th>CÃ³digo</th><th>Fecha</th><th>Tipo</th><th>Persona / Proveedor</th><th>Concepto</th><th>Monto</th><th>Estado</th></tr>
                 </thead>
                 <tbody>
                   {movements.slice(0, 10).map((m) => (
@@ -585,7 +585,7 @@ export default function App() {
           </div>
         )}
 
-        {/* PÁGINA INGRESOS */}
+        {/* PÃGINA INGRESOS */}
         {activePage === 'Ingresos' && (
           <div>
             <div className="action-bar">
@@ -594,7 +594,7 @@ export default function App() {
             </div>
             <table className="data-table">
               <thead>
-                <tr><th>Recibo</th><th>Fecha</th><th>Cliente</th><th>Carnet</th><th>Teléfono</th><th>Concepto</th><th>Monto</th><th>Registrado por</th><th>Acción</th></tr>
+                <tr><th>Recibo</th><th>Fecha</th><th>Cliente</th><th>Carnet</th><th>TelÃ©fono</th><th>Concepto</th><th>Monto</th><th>Registrado por</th><th>AcciÃ³n</th></tr>
               </thead>
               <tbody>
                 {filteredPayments.map((p) => (
@@ -612,7 +612,7 @@ export default function App() {
           </div>
         )}
 
-        {/* PÁGINA EGRESOS */}
+        {/* PÃGINA EGRESOS */}
         {activePage === 'Egresos' && (
           <div>
             <div className="action-bar">
@@ -621,7 +621,7 @@ export default function App() {
             </div>
             <table className="data-table">
               <thead>
-                <tr><th>Comprobante</th><th>Fecha</th><th>Pagado a</th><th>Concepto</th><th>Categoría</th><th>Monto</th><th>Registrado por</th><th>Acción</th></tr>
+                <tr><th>Comprobante</th><th>Fecha</th><th>Pagado a</th><th>Concepto</th><th>CategorÃ­a</th><th>Monto</th><th>Registrado por</th><th>AcciÃ³n</th></tr>
               </thead>
               <tbody>
                 {filteredExpenses.map((e) => (
@@ -638,7 +638,7 @@ export default function App() {
           </div>
         )}
 
-        {/* PÁGINA EVENTOS */}
+        {/* PÃGINA EVENTOS */}
         {activePage === 'Eventos' && (
           <div>
             {loggedUser === eventManager && (
@@ -673,13 +673,13 @@ export default function App() {
           </div>
         )}
 
-        {/* PÁGINA CLIENTES */}
+        {/* PÃGINA CLIENTES */}
         {activePage === 'Clientes' && (
           <div>
-            <input type="text" placeholder="Buscar cliente por nombre, CI o teléfono..." value={peopleQuery} onChange={(e) => setPeopleQuery(e.target.value)} />
+            <input type="text" placeholder="Buscar cliente por nombre, CI o telÃ©fono..." value={peopleQuery} onChange={(e) => setPeopleQuery(e.target.value)} />
             <table className="data-table">
               <thead>
-                <tr><th>Nombre</th><th>Carnet</th><th>Teléfono</th><th>Pagado Total</th><th>Pagos Registrados</th><th>Saldo Pendiente</th><th>Acciones</th></tr>
+                <tr><th>Nombre</th><th>Carnet</th><th>TelÃ©fono</th><th>Pagado Total</th><th>Pagos Registrados</th><th>Saldo Pendiente</th><th>Acciones</th></tr>
               </thead>
               <tbody>
                 {filteredPeople.map((p) => (
@@ -695,10 +695,10 @@ export default function App() {
           </div>
         )}
 
-        {/* PÁGINA USUARIOS (Solo visible para Ovet Zúñiga) */}
+        {/* PÃGINA USUARIOS (Solo visible para Ovet ZÃºÃ±iga) */}
         {activePage === 'Usuarios' && loggedUser === systemAdmin && (
           <div className="users-panel">
-            <h2>Administración de Usuarios y Permisos</h2>
+            <h2>AdministraciÃ³n de Usuarios y Permisos</h2>
             
             {/* Formulario para cambiar firma del usuario actual */}
             <div className="user-section">
@@ -715,7 +715,7 @@ export default function App() {
               <form onSubmit={handleCreateUser} className="form-grid">
                 <input type="text" placeholder="Nombre de usuario" value={newUserForm.name} onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })} required />
                 <input type="text" placeholder="Nombre completo (Firma)" value={newUserForm.fullName} onChange={(e) => setNewUserForm({ ...newUserForm, fullName: e.target.value })} />
-                <input type="password" placeholder="Contraseña inicial" value={newUserForm.password} onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} />
+                <input type="password" placeholder="ContraseÃ±a inicial" value={newUserForm.password} onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} />
                 <button type="submit" className="btn-primary">Crear Cuenta</button>
               </form>
               {userMessage && <p className="info-msg">{userMessage}</p>}
@@ -726,7 +726,7 @@ export default function App() {
               <h3>Cuentas Registradas</h3>
               <table className="data-table">
                 <thead>
-                  <tr><th>Usuario</th><th>Nombre Completo (Firma)</th><th>Estado</th><th>Contraseña</th><th>Acciones</th></tr>
+                  <tr><th>Usuario</th><th>Nombre Completo (Firma)</th><th>Estado</th><th>ContraseÃ±a</th><th>Acciones</th></tr>
                 </thead>
                 <tbody>
                   {accounts.map((acc) => (
@@ -756,16 +756,16 @@ export default function App() {
                 <form onSubmit={handleUpdateUser} className="form-grid">
                   <input type="text" placeholder="Nombre de usuario" value={editingUser.name} readOnly />
                   <input type="text" placeholder="Nombre completo (Firma)" value={editUserForm.fullName} onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })} required />
-                  <input type="password" placeholder="Nueva Contraseña" value={editUserForm.password} onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })} />
+                  <input type="password" placeholder="Nueva ContraseÃ±a" value={editUserForm.password} onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })} />
                   <button type="submit" className="btn-primary">Actualizar Usuario</button>
-                  <button type="button" onClick={() => setEditingUser(null)}>Cancelar Edición</button>
+                  <button type="button" onClick={() => setEditingUser(null)}>Cancelar EdiciÃ³n</button>
                 </form>
               </div>
             )}
 
-            {/* Sección de Permisos para cada Usuario */}
+            {/* SecciÃ³n de Permisos para cada Usuario */}
             <div className="user-section">
-              <h3>Gestión de Permisos</h3>
+              <h3>GestiÃ³n de Permisos</h3>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -791,243 +791,4 @@ export default function App() {
           </div>
         )}
       </main>
-
-      {/* MODALES */}
-      {editingUser && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3>Editar Usuario</h3>
-            <form onSubmit={handleUpdateUser}>
-              <input type="text" value={editUserForm.fullName} onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })} placeholder="Nombre Completo" />
-              <input type="password" value={editUserForm.password} onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })} placeholder="Nueva Contraseña (opcional)" />
-              <button type="submit" className="btn-primary">Actualizar Usuario</button>
-              <button type="button" onClick={() => setEditingUser(null)}>Cancelar Edición</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-
-
-export default App
-
-// --- Funciones de utilidad y estado ---
-// Asegúrate de que estas definiciones estén accesibles dentro del componente App,
-// ya sea directamente o a través de props/contexto.
-
-const persist = (newAccounts: Account[]) => {
-  localStorage.setItem(accountsKey, JSON.stringify(newAccounts));
-};
-
-// Asumiendo que systemAdmin está definido, por ejemplo:
-// const systemAdmin = 'Ovet Zúñiga';
-
-// Las siguientes funciones y estados deberían ser definidos dentro del componente App:
-/*
-  const [accounts, setAccounts] = usePersistedState<Account[]>(accountsKey, defaultAccounts);
-  const [selected, setSelected] = useState<Account['name'] | null>(null);
-  const [password, setPassword] = useState('');
-  const [fullNameDraft, setFullNameDraft] = useState('');
-  const [newUserForm, setNewUserForm] = useState({ name: '', fullName: '', password: '' });
-  const [userMessage, setUserMessage] = useState('');
-  const [activePage, setActivePage] = useState('Ingresos');
-  const [peopleQuery, setPeopleQuery] = useState('');
-  const [expenseQuery, setExpenseQuery] = useState('');
-  const [query, setQuery] = useState('');
-  const [editingUser, setEditingUser] = useState<Account | null>(null);
-  const [editUserForm, setEditUserForm] = useState({ fullName: '', password: '' });
-  const systemAdmin = 'Ovet Zúñiga'; // Definir el administrador principal
-
-  const toggleUserEnabled = (userName: Account['name']) => {
-    const newAccounts = accounts.map(acc =>
-      acc.name === userName ? { ...acc, enabled: !acc.enabled } : acc
-    );
-    setAccounts(newAccounts);
-    persist(newAccounts);
-  };
-
-  const handleEditUser = (acc: Account) => {
-    setEditingUser(acc);
-    setEditUserForm({ fullName: acc.fullName || '', password: '' });
-  };
-
-  const handleUpdateUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingUser) return;
-
-    let newAccounts = accounts.map(acc =>
-      acc.name === editingUser.name ? { ...acc, fullName: editUserForm.fullName } : acc
-    );
-
-    if (editUserForm.password) {
-      newAccounts = newAccounts.map(acc =>
-        acc.name === editingUser.name ? { ...acc, password: editUserForm.password } : acc
-      );
-    }
-
-    setAccounts(newAccounts);
-    persist(newAccounts);
-    setEditingUser(null);
-
-  const handlePermissionChange = (userName: Account['name'], permission: keyof AccountPermissions, isChecked: boolean) => {
-    const newAccounts = accounts.map(acc => {
-      if (acc.name === userName) {
-        const currentPermissions = acc.permissions || { ...defaultPermissions, users: false };
-        return {
-          ...acc,
-          permissions: {
-            ...currentPermissions,
-            [permission]: isChecked,
-          },
-        };
-      }
-      return acc;
-    });
-    setAccounts(newAccounts);
-    persist(newAccounts);
-  };
-
-    setUserMessage('Usuario actualizado exitosamente.');
-  };
-*/
-
-                      <td>{acc.fullName || '-'}</td>
-                      <td>
-                        <span className={isAccountEnabled(acc) ? 'badge applied' : 'badge voided'}>
-                          {isAccountEnabled(acc) ? 'Habilitado' : 'Deshabilitado'}
-                        </span>
-                      </td>
-                      <td>{acc.needsPassword ? 'Sin contraseña' : 'Configurada'}</td>
-                      <td>
-                        {acc.name !== systemAdmin && (
-                          <button onClick={() => toggleAccountEnabled(acc.name)}>
-                            {isAccountEnabled(acc) ? 'Deshabilitar' : 'Habilitar'}
-                          </button>
-                        )}
-                        <button onClick={() => {
-                          const p = prompt(`Nueva contraseña para ${acc.name}:`)
-                          if (p !== null) updateAccountPassword(acc.name, p)
-                        }}>
-                          Cambiar Clave
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Zona de peligro: Reset completo */}
-            <div className="user-section danger-zone">
-              <h3>Mantenimiento de Base de Datos</h3>
-              <p>Escribe <strong>BORRAR Y REINICIAR</strong> para vaciar todos los ingresos, egresos y clientes registrados:</p>
-              <input type="text" value={confirmClear} onChange={(e) => setConfirmClear(e.target.value)} placeholder="Escribe exactamente aquí..." />
-              <button className="btn-danger" disabled={confirmClear !== 'BORRAR Y REINICIAR'} onClick={clearAllData}>
-                Reiniciar Toda la Información
-              </button>
-            </div>
-          </div>
-        )}
-
-
-      {/* MODAL NUEVO INGRESO */}
-      {showIncomeModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h2>Registrar Nuevo Ingreso</h2>
-            <input type="text" placeholder="Nombre del Cliente" value={incomeForm.person} onChange={(e) => fillIncomeField('person', e.target.value)} />
-            <input type="text" placeholder="Carnet de Identidad" value={incomeForm.carnet} onChange={(e) => fillIncomeField('carnet', e.target.value)} />
-            <input type="text" placeholder="Teléfono / Celular" value={incomeForm.phone} onChange={(e) => fillIncomeField('phone', e.target.value)} />
-            <input type="text" placeholder="Concepto (Ej. Campamento juvenil)" value={incomeForm.concept} onChange={(e) => setIncomeForm({ ...incomeForm, concept: e.target.value })} />
-            <div className="form-row">
-
-              <input type="number" placeholder="Efectivo Bs" value={incomeForm.cash} onChange={(e) => setIncomeForm({ ...incomeForm, cash: e.target.value })} />
-              <input type="number" placeholder="QR Bs" value={incomeForm.qr} onChange={(e) => setIncomeForm({ ...incomeForm, qr: e.target.value })} />
-            </div>
-            <div className="modal-actions">
-              <button onClick={saveIncome} className="btn-primary">Guardar e Imprimir Recibo</button>
-              <button onClick={() => setShowIncomeModal(false)}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL NUEVO EGRESO */}
-      {showExpenseModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h2>Registrar Nuevo Egreso</h2>
-            <input type="text" placeholder="Pagado a (Beneficiario/Proveedor)" value={expenseForm.recipient} onChange={(e) => setExpenseForm({ ...expenseForm, recipient: e.target.value })} />
-            <input type="text" placeholder="Concepto del gasto" value={expenseForm.concept} onChange={(e) => setExpenseForm({ ...expenseForm, concept: e.target.value })} />
-            <input type="text" placeholder="Categoría (Ej. Servicios básicos)" value={expenseForm.category} onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })} />
-            <div className="form-row">
-              <input type="number" placeholder="Efectivo Bs" value={expenseForm.cash} onChange={(e) => setExpenseForm({ ...expenseForm, cash: e.target.value })} />
-              <input type="number" placeholder="QR Bs" value={expenseForm.qr} onChange={(e) => setExpenseForm({ ...expenseForm, qr: e.target.value })} />
-            </div>
-            <div className="modal-actions">
-              <button onClick={saveExpense} className="btn-primary">Guardar Comprobante</button>
-              <button onClick={() => setShowExpenseModal(false)}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VISUALIZADOR DE RECIBO DE PAGO */}
-      {showReceipt && selectedReceipt && (
-        <div className="modal-overlay">
-          <div className="modal-card print-view">
-            <div className="print-copies-wrapper">
-              {renderReceiptCopy(selectedReceipt, 'cliente', receiptPaperRef)}
-              {renderReceiptCopy(selectedReceipt, 'administración')}
-            </div>
-            <div className="modal-actions no-print">
-              <button onClick={() => window.print()} className="btn-primary">Imprimir Duplicado</button>
-              <button onClick={() => shareAsImage(receiptPaperRef.current, `${selectedReceipt.receipt}.png`, `Recibo ${selectedReceipt.receipt} de SEC-CAR para ${selectedReceipt.person}`)} disabled={sharingReceipt}>
-                {sharingReceipt ? 'Generando...' : 'Compartir / WhatsApp'}
-              </button>
-              <button onClick={() => setShowReceipt(false)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VISUALIZADOR DE COMPROBANTE DE EGRESO */}
-      {showVoucher && selectedVoucher && (
-        <div className="modal-overlay">
-          <div className="modal-card print-view">
-            <div className="print-copies-wrapper">
-              {renderVoucherCopy(selectedVoucher, 'beneficiario', voucherPaperRef)}
-              {renderVoucherCopy(selectedVoucher, 'administración')}
-            </div>
-            <div className="modal-actions no-print">
-              <button onClick={() => window.print()} className="btn-primary">Imprimir Comprobante</button>
-              <button onClick={() => shareAsImage(voucherPaperRef.current, `${selectedVoucher.voucher}.png`, `Comprobante ${selectedVoucher.voucher} de SEC-CAR para ${selectedVoucher.recipient}`)} disabled={sharingReceipt}>
-                {sharingReceipt ? 'Generando...' : 'Compartir / WhatsApp'}
-              </button>
-              <button onClick={() => setShowVoucher(false)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL ELIMINAR CLIENTE */}
-      {pendingDelete && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h2>Confirmar Eliminación</h2>
-            <p>¿Estás seguro de eliminar a <strong>{pendingDelete.name}</strong> del directorio de clientes?</p>
-            {pendingDeleteRecord && (
-              <p><small>Este cliente cuenta con {pendingDeleteRecord.count} recibo(s) registrado(s) por un valor de {money(pendingDeleteRecord.total)}.</small></p>
-            )}
-            <div className="modal-actions">
-              <button className="btn-danger" onClick={() => { setPeople(people.filter((p) => p.id !== pendingDelete.id)); setPendingDelete(null) }}>
-                Eliminar Cliente
-              </button>
-              <button onClick={() => setPendingDelete(null)}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
 }
