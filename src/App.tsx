@@ -203,6 +203,47 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
   )
 }
 
+// Estados para la gestión y edición de usuarios
+const [editingUser, setEditingUser] = useState<string | null>(null);
+const [editUserForm, setEditUserForm] = useState({ fullName: '', password: '' });
+
+const toggleUserEnabled = (username: string) => {
+  setAccounts((prev) =>
+    prev.map((acc) => (acc.name === username ? { ...acc, enabled: !acc.enabled } : acc))
+  );
+};
+
+const handleEditUser = (account: any) => {
+  setEditingUser(account.name);
+  setEditUserForm({ fullName: account.fullName || '', password: account.password || '' });
+};
+
+const handleUpdateUser = (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingUser) return;
+  setAccounts((prev) =>
+    prev.map((acc) =>
+      acc.name === editingUser
+        ? { ...acc, fullName: editUserForm.fullName, password: editUserForm.password }
+        : acc
+    )
+  );
+  setEditingUser(null);
+};
+
+const handlePermissionChange = (username: string, permission: string, value: boolean) => {
+  setAccounts((prev) =>
+    prev.map((acc) => {
+      if (acc.name !== username) return acc;
+      const currentPermissions = acc.permissions || [];
+      const updatedPermissions = value
+        ? [...currentPermissions, permission]
+        : currentPermissions.filter((p) => p !== permission);
+      return { ...acc, permissions: updatedPermissions };
+    })
+  );
+};
+
 export default function App() {
   const [loggedUser, setLoggedUser] = useState<Account['name'] | null>(null)
   const [activePage, setActivePage] = useState<string>('Resumen')
