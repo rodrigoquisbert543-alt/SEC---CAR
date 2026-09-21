@@ -734,6 +734,165 @@ export default function App() {
                       <td>{acc.name}</td>
                       <td>{acc.fullName || '-'}</td>
                       <td>
+                        {acc.enabled ? 'Activo' : 'Inactivo'}
+                        <button onClick={() => toggleUserEnabled(acc.name)} className="btn-status">
+                          {acc.enabled ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </td>
+                      <td>******</td> {/* Placeholder for password */}
+                      <td>
+                        <button onClick={() => handleEditUser(acc)}>Editar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Formulario para editar usuario (inicialmente oculto) */}
+            {editingUser && (
+              <div className="user-section">
+                <h3>Editar Usuario: {editingUser.name}</h3>
+                <form onSubmit={handleUpdateUser} className="form-grid">
+                  <input type="text" placeholder="Nombre de usuario" value={editingUser.name} readOnly />
+                  <input type="text" placeholder="Nombre completo (Firma)" value={editUserForm.fullName} onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })} required />
+                  <input type="password" placeholder="Nueva Contraseña" value={editUserForm.password} onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })} />
+
+            {/* Sección de Permisos para cada Usuario */}
+            <div className="user-section">
+              <h3>Gestión de Permisos</h3>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Nombre Completo</th>
+                    <th>Estado</th>
+                    <th>Permisos</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accounts.map((acc) => (
+                    <tr key={acc.name}>
+                      <td>{acc.name}</td>
+                      <td>{acc.fullName || '-'}</td>
+                      <td>{acc.enabled ? 'Activo' : 'Inactivo'}</td>
+                      <td>
+                        <label><input type="checkbox" checked={acc.permissions?.income} onChange={(e) => handlePermissionChange(acc.name, 'income', e.target.checked)} /> Ingresos</label>
+                        <label><input type="checkbox" checked={acc.permissions?.expenses} onChange={(e) => handlePermissionChange(acc.name, 'expenses', e.target.checked)} /> Egresos</label>
+                        <label><input type="checkbox" checked={acc.permissions?.events} onChange={(e) => handlePermissionChange(acc.name, 'events', e.target.checked)} /> Eventos</label>
+                        <label><input type="checkbox" checked={acc.permissions?.clients} onChange={(e) => handlePermissionChange(acc.name, 'clients', e.target.checked)} /> Clientes</label>
+                      </td>
+                      <td>
+                        <button onClick={() => handleEditUser(acc)}>Editar</button>
+                        <button onClick={() => toggleUserEnabled(acc.name)} className="btn-status">
+                          {acc.enabled ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+                  <button type="submit" className="btn-primary">Actualizar Usuario</button>
+                  <button type="button" onClick={() => setEditingUser(null)}>Cancelar Edición</button>
+                </form>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Resto del componente App */}
+      </div>
+    </>
+  )
+}
+
+export default App
+
+// --- Funciones de utilidad y estado ---
+// Asegúrate de que estas definiciones estén accesibles dentro del componente App,
+// ya sea directamente o a través de props/contexto.
+
+const persist = (newAccounts: Account[]) => {
+  localStorage.setItem(accountsKey, JSON.stringify(newAccounts));
+};
+
+// Asumiendo que systemAdmin está definido, por ejemplo:
+// const systemAdmin = 'Ovet Zúñiga';
+
+// Las siguientes funciones y estados deberían ser definidos dentro del componente App:
+/*
+  const [accounts, setAccounts] = usePersistedState<Account[]>(accountsKey, defaultAccounts);
+  const [selected, setSelected] = useState<Account['name'] | null>(null);
+  const [password, setPassword] = useState('');
+  const [fullNameDraft, setFullNameDraft] = useState('');
+  const [newUserForm, setNewUserForm] = useState({ name: '', fullName: '', password: '' });
+  const [userMessage, setUserMessage] = useState('');
+  const [activePage, setActivePage] = useState('Ingresos');
+  const [peopleQuery, setPeopleQuery] = useState('');
+  const [expenseQuery, setExpenseQuery] = useState('');
+  const [query, setQuery] = useState('');
+  const [editingUser, setEditingUser] = useState<Account | null>(null);
+  const [editUserForm, setEditUserForm] = useState({ fullName: '', password: '' });
+  const systemAdmin = 'Ovet Zúñiga'; // Definir el administrador principal
+
+  const toggleUserEnabled = (userName: Account['name']) => {
+    const newAccounts = accounts.map(acc =>
+      acc.name === userName ? { ...acc, enabled: !acc.enabled } : acc
+    );
+    setAccounts(newAccounts);
+    persist(newAccounts);
+  };
+
+  const handleEditUser = (acc: Account) => {
+    setEditingUser(acc);
+    setEditUserForm({ fullName: acc.fullName || '', password: '' });
+  };
+
+  const handleUpdateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    let newAccounts = accounts.map(acc =>
+      acc.name === editingUser.name ? { ...acc, fullName: editUserForm.fullName } : acc
+    );
+
+    if (editUserForm.password) {
+      newAccounts = newAccounts.map(acc =>
+        acc.name === editingUser.name ? { ...acc, password: editUserForm.password } : acc
+      );
+    }
+
+    setAccounts(newAccounts);
+    persist(newAccounts);
+    setEditingUser(null);
+
+  const handlePermissionChange = (userName: Account['name'], permission: keyof AccountPermissions, isChecked: boolean) => {
+    const newAccounts = accounts.map(acc => {
+      if (acc.name === userName) {
+        const currentPermissions = acc.permissions || { ...defaultPermissions, users: false };
+        return {
+          ...acc,
+          permissions: {
+            ...currentPermissions,
+            [permission]: isChecked,
+          },
+        };
+      }
+      return acc;
+    });
+    setAccounts(newAccounts);
+    persist(newAccounts);
+  };
+
+    setUserMessage('Usuario actualizado exitosamente.');
+  };
+*/
+
+                      <td>{acc.fullName || '-'}</td>
+                      <td>
                         <span className={isAccountEnabled(acc) ? 'badge applied' : 'badge voided'}>
                           {isAccountEnabled(acc) ? 'Habilitado' : 'Deshabilitado'}
                         </span>
