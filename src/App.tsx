@@ -108,7 +108,7 @@ function AccessScreen({
         </div>
 
         {mode !== 'recovery' && (
-          <>
+          <div> 
             <div className="user-picker">
               <span>¿Quién eres?</span>
               <div>
@@ -118,7 +118,11 @@ function AccessScreen({
                     className={selected === account.name ? 'user-choice selected' : 'user-choice'}
                     onClick={() => chooseUser(account.name)}
                   >
-                    <span className="auth-avatar">{account.name[0]}</span>
+                    <span className="auth-avatar" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                        <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z" />
+                      </svg>
+                    </span>
                     <span>
                       <strong>{account.name}</strong>
                       <small>{account.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small>
@@ -152,7 +156,8 @@ function AccessScreen({
               {current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span>
             </button>
             <button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button>
-          </>
+          <div className="auth-message">{message}</div>
+        </div>      
         )}
 
         {mode === 'recovery' && (
