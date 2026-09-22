@@ -231,7 +231,7 @@ const nextCode = (prefix: string, count: number) => `${prefix}-${String(count).p
 // ============================================================
 // TIPOS DE DATOS
 // ============================================================
-type Payment = { id: string; receipt: string; person: string; carnet: string; phone: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: string }
+type Payment = { id: string; receipt: string; person: string; carnet: string; phone: string; concept: string; notes?: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: string }
 type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: string }
 type Person = { id: string; name: string; carnet: string; phone: string; notes: string }
 
@@ -307,7 +307,7 @@ function App() {
   const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null)
   const [selectedVoucher, setSelectedVoucher] = useState<Expense | null>(null)
 
-  const [incomeForm, setIncomeForm] = useState({ person: '', carnet: '', phone: '', concept: '', cash: '', qr: '' })
+  const [incomeForm, setIncomeForm] = useState({ person: '', carnet: '', phone: '', concept: '', notes: '', cash: '', qr: '' })
   const [expenseForm, setExpenseForm] = useState({ concept: '', recipient: '', category: '', cash: '', qr: '' })
   const [personForm, setPersonForm] = useState({ name: '', carnet: '', phone: '', notes: '' })
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null)
@@ -360,6 +360,11 @@ function App() {
       {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
       {payment.phone && <div className="receipt-line"><span>N.º de celular:</span><b>{payment.phone}</b></div>}
       <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
+      
+      {/* 👇 NUEVA LÍNEA: Notas si existen 👇 */}
+      {payment.notes && <div className="receipt-line"><span>Notas:</span><b>{payment.notes}</b></div>}
+      {/* 👆 FIN DE LA NUEVA LÍNEA 👆 */}
+      
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
       <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
@@ -498,20 +503,53 @@ function App() {
     const cash = Number(incomeForm.cash) || 0
     const qr = Number(incomeForm.qr) || 0
     if (!incomeForm.person.trim() || !incomeForm.concept.trim() || (!cash && !qr)) return
+    
     const concept = incomeForm.concept.trim()
     const personName = incomeForm.person.trim()
     const carnet = incomeForm.carnet.trim()
     const phone = incomeForm.phone.trim()
-    const next: Payment = { id: crypto.randomUUID(), receipt: nextCode('REC', 242 + payments.length), person: personName, carnet, phone, concept, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado', issuedBy: loggedUser! }
+    const notes = incomeForm.notes.trim() // <-- Capturamos las notas
+    
+    const next: Payment = { 
+        id: crypto.randomUUID(), 
+        receipt: nextCode('REC', 242 + payments.length), 
+        person: personName, 
+        carnet, 
+        phone, 
+        concept, 
+        notes, // <-- Agregamos las notas al objeto
+        date: todayISO(), 
+        amount: cash + qr, 
+        cash, 
+        qr, 
+        status: 'Aplicado', 
+        issuedBy: loggedUser! 
+    }
+    
     setPayments([next, ...payments])
-    if (loggedUser === eventManager && !eventOptions.includes(concept)) setEventOptions([...eventOptions, concept])
+    
+    if (loggedUser === eventManager && !eventOptions.includes(concept)) {
+        setEventOptions([...eventOptions, concept])
+    }
+    
     const existing = people.find((person) => person.name.toLowerCase() === personName.toLowerCase())
-    if (!existing) setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone, notes: '' }])
-    else setPeople(people.map((person) => person.id === existing.id ? { ...person, carnet: carnet && !person.carnet ? carnet : person.carnet, phone: phone && !person.phone ? phone : person.phone } : person))
-    setSelectedReceipt(next); setShowIncomeModal(false); setShowReceipt(true)
-    setIncomeForm({ person: '', carnet: '', phone: '', concept: '', cash: '', qr: '' })
+    if (!existing) {
+        setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone, notes: '' }])
+    } else {
+        setPeople(people.map((person) => 
+            person.id === existing.id 
+                ? { ...person, carnet: carnet && !person.carnet ? carnet : person.carnet, phone: phone && !person.phone ? phone : person.phone } 
+                : person
+        ))
+    }
+    
+    setSelectedReceipt(next)
+    setShowIncomeModal(false)
+    setShowReceipt(true)
+    
+    // Limpieza del formulario (ahora incluye notes)
+    setIncomeForm({ person: '', carnet: '', phone: '', concept: '', notes: '', cash: '', qr: '' })
   }
-
   const saveExpense = () => {
     const cash = Number(expenseForm.cash) || 0
     const qr = Number(expenseForm.qr) || 0
@@ -925,10 +963,15 @@ function App() {
       {showIncomeModal && (
         <div className="modal-backdrop" onClick={() => setShowIncomeModal(false)}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div><button className="close-button" onClick={() => setShowIncomeModal(false)}>×</button></div>
+            <div className="modal-title">
+              <div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div>
+              <button className="close-button" onClick={() => setShowIncomeModal(false)}>×</button>
+            </div>
+
             <label>Nombre de la persona<input list="client-name-suggestions" value={incomeForm.person} onChange={(event) => fillIncomeField('person', event.target.value)} placeholder="Ej. Ana Lopez" /><datalist id="client-name-suggestions">{suggestionsFor(incomeForm.person, people.map((person) => person.name)).map((name) => <option value={name} key={name} />)}</datalist></label>
             <label>N.º de carnet<input list="client-carnet-suggestions" value={incomeForm.carnet} onChange={(event) => fillIncomeField('carnet', event.target.value)} placeholder="Ej. 7845123" /><datalist id="client-carnet-suggestions">{suggestionsFor(incomeForm.carnet, people.filter((person) => person.carnet).map((person) => person.carnet)).map((carnet) => <option value={carnet} key={carnet} />)}</datalist></label>
             <label>Teléfono<input list="client-phone-suggestions" value={incomeForm.phone} onChange={(event) => fillIncomeField('phone', event.target.value)} placeholder="Ej. 71234567" /><datalist id="client-phone-suggestions">{suggestionsFor(incomeForm.phone, people.filter((person) => person.phone).map((person) => person.phone)).map((phone) => <option value={phone} key={phone} />)}</datalist></label>
+
             {incomeLookup && (
               <div className="lookup-card">
                 <div className="lookup-head"><strong>{incomeLookup.name}</strong>{incomeLookup.carnet && <span>Carnet {incomeLookup.carnet}</span>}{incomeLookup.phone && <span>Tel. {incomeLookup.phone}</span>}</div>
@@ -946,7 +989,18 @@ function App() {
                 )}
               </div>
             )}
+
             <label>Evento o concepto<input list="event-suggestions" value={incomeForm.concept} onChange={(event) => setIncomeForm({ ...incomeForm, concept: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="event-suggestions">{suggestionsFor(incomeForm.concept, eventOptions).map((option) => <option value={option} key={option} />)}</datalist></label>
+
+            <label>Notas o Detalles (Opcional)
+              <textarea
+                value={incomeForm.notes}
+                onChange={(event) => setIncomeForm({ ...incomeForm, notes: event.target.value })}
+                placeholder="Ej: Pago parcial acordado, observaciones, detalles adicionales..."
+                rows={3}
+              />
+            </label>
+
             <div className="form-row"><label>Efectivo (Bs)<input type="number" value={incomeForm.cash} onChange={(event) => setIncomeForm({ ...incomeForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={incomeForm.qr} onChange={(event) => setIncomeForm({ ...incomeForm, qr: event.target.value })} placeholder="0.00" /></label></div>
             <div className="payment-note">Puedes combinar efectivo y QR en un mismo recibo. El concepto es libre; las sugerencias solo ayudan a escribir más rápido.</div>
             <button className="primary-button full" onClick={saveIncome}>Guardar y emitir recibo <span>→</span></button>
