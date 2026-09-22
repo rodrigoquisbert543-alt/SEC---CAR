@@ -9,14 +9,20 @@ import './App.css'
 // CONSTANTES GENERALES
 // ============================================================
 const adminResetKey = import.meta.env.VITE_ADMIN_RESET_KEY || 'SEC-CAR-ADMIN'
-const PRIMARY_ADMIN = 'Ovet Zúñiga'   // Administrador principal del sistema
+const PRIMARY_ADMIN = 'Ovet Zúñiga'
 
-// Verifica si un usuario tiene un permiso (el admin siempre tiene todos)
 function hasPermission(acc: Account | null, perm: Permission): boolean {
   if (!acc) return false
   if (acc.role === 'admin') return true
   return acc.permissions.includes(perm)
 }
+
+// Ícono de persona reutilizable (evita repetir el SVG por todo el código)
+const PersonIcon = ({ size = 14 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width={size} height={size} aria-hidden="true">
+    <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z" />
+  </svg>
+)
 
 // ============================================================
 // PANTALLA DE ACCESO
@@ -39,7 +45,6 @@ function AccessScreen({
 
   const current = accounts.find((account) => account.name === selected) || accounts[0]
 
-  // Si los usuarios cambian (por ejemplo, el admin crea uno nuevo), ajustamos el seleccionado
   useEffect(() => {
     if (!accounts.some((a) => a.name === selected) && accounts[0]) {
       setSelected(accounts[0].name)
@@ -108,7 +113,7 @@ function AccessScreen({
         </div>
 
         {mode !== 'recovery' && (
-          <div> 
+          <>
             <div className="user-picker">
               <span>¿Quién eres?</span>
               <div>
@@ -118,11 +123,7 @@ function AccessScreen({
                     className={selected === account.name ? 'user-choice selected' : 'user-choice'}
                     onClick={() => chooseUser(account.name)}
                   >
-                    <span className="auth-avatar" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-                        <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z" />
-                      </svg>
-                    </span>
+                    <span className="auth-avatar"><PersonIcon size={14} /></span>
                     <span>
                       <strong>{account.name}</strong>
                       <small>{account.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small>
@@ -156,8 +157,7 @@ function AccessScreen({
               {current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span>
             </button>
             <button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button>
-          <div className="auth-message">{message}</div>
-        </div>      
+          </>
         )}
 
         {mode === 'recovery' && (
@@ -271,11 +271,9 @@ function App() {
   const [loggedUser, setLoggedUser] = useState<string | null>(null)
   const [activePage, setActivePage] = useState<string>('Resumen')
 
-  // Cuentas del sistema (nuevo esquema)
   const [accounts, setAccounts] = useState<Account[]>(() => seedIfEmpty(loadAccounts()))
   useEffect(() => { saveAccounts(accounts) }, [accounts])
 
-  // Control del panel de administración
   const [showUserManagement, setShowUserManagement] = useState(false)
 
   const currentUser = useMemo(
@@ -284,7 +282,6 @@ function App() {
   )
   const isPrimaryAdmin = currentUser?.name === PRIMARY_ADMIN
 
-  // Estados persistentes del sistema
   const [payments, setPayments] = usePersistedState<Payment[]>('sec-car-payments', initialPayments)
   const [expenses, setExpenses] = usePersistedState<Expense[]>('sec-car-expenses', initialExpenses)
   const [eventOptions, setEventOptions] = usePersistedState<string[]>('sec-car-events', initialEventOptions)
@@ -608,7 +605,10 @@ function App() {
   return (
     <div className={`app-shell ${theme}`}>
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Administración</span></div></div>
+        <div className="brand">
+          <div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div>
+          <div><strong>SEC-CAR</strong><span>Administración</span></div>
+        </div>
         <div className="side-label">GESTIÓN</div>
         <nav>
           {navItems.map((item) => (
@@ -619,9 +619,10 @@ function App() {
           ))}
         </nav>
         <div className="side-label report-label">REPORTES</div>
-        <button className={activePage === 'Reportes' ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage('Reportes')}><span className="nav-icon">▤</span>Reportes</button>
+        <button className={activePage === 'Reportes' ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage('Reportes')}>
+          <span className="nav-icon">▤</span>Reportes
+        </button>
 
-        {/* Panel de administración visible SOLO para el administrador principal (Ovet Zúñiga) */}
         {isPrimaryAdmin && (
           <>
             <div className="side-label report-label">ADMINISTRACIÓN</div>
@@ -632,10 +633,16 @@ function App() {
         )}
 
         <div className="sidebar-bottom">
-          <div className="sync"><span className="sync-dot"></span><div><strong>Sincronizado</strong><small>Todos los cambios guardados</small></div></div>
+          <div className="sync">
+            <span className="sync-dot"></span>
+            <div><strong>Sincronizado</strong><small>Todos los cambios guardados</small></div>
+          </div>
           <div className="profile">
-            <div className="avatar">{loggedUser[0]}</div>
-            <div><strong>{loggedUser}</strong><small>{currentUser?.role === 'admin' ? 'Administrador' : 'Usuario'}</small></div>
+            <div className="avatar"><PersonIcon size={16} /></div>
+            <div>
+              <strong>{loggedUser}</strong>
+              <small>{currentUser?.role === 'admin' ? 'Administrador' : 'Usuario'}</small>
+            </div>
             <button className="logout-button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={() => setLoggedUser(null)}>⏻</button>
           </div>
         </div>
@@ -691,7 +698,7 @@ function App() {
                         <tr key={`${m.type}-${m.id}`}>
                           <td>{m.code}</td>
                           <td><span className={m.type === 'Ingreso' ? 'status' : 'status void'}>{m.type}</span></td>
-                          <td className="person-cell"><span className="tiny-avatar">{m.label[0]}</span><span>{m.label}<span className="method">{m.concept}</span></span></td>
+                          <td className="person-cell"><span className="tiny-avatar"><PersonIcon size={10} /></span><span>{m.label}<span className="method">{m.concept}</span></span></td>
                           <td>{formatDate(m.date)}</td>
                           <td>{money(m.amount)}</td>
                           <td><span className={m.status === 'Aplicado' ? 'status' : 'status void'}>{m.status}</span></td>
@@ -727,7 +734,7 @@ function App() {
                   {filteredPayments.map((payment) => (
                     <tr key={payment.id}>
                       <td><button className="receipt-link" onClick={() => { setSelectedReceipt(payment); setShowReceipt(true) }}>{payment.receipt}</button></td>
-                      <td className="person-cell"><span className="tiny-avatar">{payment.person[0]}</span>{payment.person}</td>
+                      <td className="person-cell"><span className="tiny-avatar"><PersonIcon size={10} /></span>{payment.person}</td>
                       <td>{payment.carnet || '—'}</td>
                       <td>{payment.phone || '—'}</td>
                       <td>{payment.concept}</td>
@@ -756,7 +763,7 @@ function App() {
                   {filteredExpenses.map((expense) => (
                     <tr key={expense.id}>
                       <td><button className="receipt-link" onClick={() => { setSelectedVoucher(expense); setShowVoucher(true) }}>{expense.voucher}</button></td>
-                      <td className="person-cell"><span className="tiny-avatar">{expense.recipient[0]}</span>{expense.recipient}</td>
+                      <td className="person-cell"><span className="tiny-avatar"><PersonIcon size={10} /></span>{expense.recipient}</td>
                       <td>{expense.concept}</td>
                       <td>{expense.category}</td>
                       <td>{formatDate(expense.date)}</td>
@@ -821,7 +828,7 @@ function App() {
                         const remaining = Math.max(stat.price - entry.paid, 0)
                         return (
                           <tr key={`${stat.name}-${entry.person}`}>
-                            <td className="person-cell"><span className="tiny-avatar">{entry.person[0]}</span>{entry.person}</td>
+                            <td className="person-cell"><span className="tiny-avatar"><PersonIcon size={10} /></span>{entry.person}</td>
                             <td>{entry.carnet || '—'}</td>
                             <td>{entry.phone || '—'}</td>
                             <td>{stat.name}</td>
@@ -856,7 +863,7 @@ function App() {
                 <tbody>
                   {filteredPeople.map((person) => (
                     <tr key={person.id}>
-                      <td className="person-cell"><span className="tiny-avatar">{person.name[0]}</span><span>{person.name}{person.notes && <span className="method">{person.notes}</span>}</span></td>
+                      <td className="person-cell"><span className="tiny-avatar"><PersonIcon size={10} /></span><span>{person.name}{person.notes && <span className="method">{person.notes}</span>}</span></td>
                       <td>{person.carnet || '—'}</td>
                       <td>{person.phone || '—'}</td>
                       <td>{money(person.total)}<span className="method">{person.count} recibos</span></td>
@@ -914,8 +921,6 @@ function App() {
 
         <footer className="verse-strip"><span className="verse-mark">✦</span><p>"Se requiere que el administrador, sea hallado fiel" — <b>1 Corintios 4:2</b></p></footer>
       </main>
-
-      {/* ==================== MODALES ==================== */}
 
       {showIncomeModal && (
         <div className="modal-backdrop" onClick={() => setShowIncomeModal(false)}>
@@ -1035,7 +1040,6 @@ function App() {
         </div>
       )}
 
-      {/* Panel de administración de usuarios — solo para Ovet Zúñiga */}
       {showUserManagement && isPrimaryAdmin && currentUser && (
         <UserManagement
           accounts={accounts}
