@@ -1,39 +1,74 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
+import type { Account, Permission } from './types'
+import { loadAccounts, saveAccounts, seedIfEmpty } from './utils/storage'
+import UserManagement from './components/UserManagement'
 import './App.css'
 
-type Account = { name: 'Melitza Huanca' | 'Ovet Zúñiga'; password: string; needsPassword: boolean; fullName: string }
-const defaultAccounts: Account[] = [
-  { name: 'Melitza Huanca', password: '', needsPassword: true, fullName: '' },
-  { name: 'Ovet Zúñiga', password: '', needsPassword: true, fullName: '' },
-]
-const accountsKey = 'sec-car-accounts'
-// Clave administrativa configurable por variable de entorno (VITE_ADMIN_RESET_KEY), sin necesidad de tocar el código
+// ============================================================
+// CONSTANTES GENERALES
+// ============================================================
 const adminResetKey = import.meta.env.VITE_ADMIN_RESET_KEY || 'SEC-CAR-ADMIN'
-// Migra datos guardados con los nombres cortos anteriores (Melitza/Ovet) a los nombres completos actuales
-const legacyNameMap: Record<string, Account['name']> = { Melitza: 'Melitza Huanca', Ovet: 'Ovet Zúñiga' }
-const migrateAccountName = (name: string): Account['name'] => legacyNameMap[name] || (name as Account['name'])
+const PRIMARY_ADMIN = 'Ovet Zúñiga'   // Administrador principal del sistema
 
-function readAccounts(): Account[] {
-  const stored = localStorage.getItem(accountsKey)
-  const parsed = stored ? JSON.parse(stored) as Account[] : defaultAccounts
-  const migrated = parsed.map((account) => ({ ...account, name: migrateAccountName(account.name as unknown as string), fullName: account.fullName || '' }))
-  defaultAccounts.forEach((account) => { if (!migrated.some((existing) => existing.name === account.name)) migrated.push(account) })
-  return migrated
+// Verifica si un usuario tiene un permiso (el admin siempre tiene todos)
+function hasPermission(acc: Account | null, perm: Permission): boolean {
+  if (!acc) return false
+  if (acc.role === 'admin') return true
+  return acc.permissions.includes(perm)
 }
 
-function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void }) {
-  const [accounts, setAccounts] = useState(readAccounts)
-  const [selected, setSelected] = useState<Account['name']>('Melitza Huanca')
+// ============================================================
+// PANTALLA DE ACCESO
+// ============================================================
+function AccessScreen({
+  accounts,
+  onLogin,
+  onChangeAccounts,
+}: {
+  accounts: Account[]
+  onLogin: (name: string) => void
+  onChangeAccounts: (next: Account[]) => void
+}) {
+  const [selected, setSelected] = useState<string>(accounts[0]?.name || '')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [fullName, setFullName] = useState('')
   const [mode, setMode] = useState<'login' | 'first' | 'recovery'>('login')
   const [message, setMessage] = useState('')
 
-  const current = accounts.find((account) => account.name === selected)!
-  const persist = (next: Account[]) => { setAccounts(next); localStorage.setItem(accountsKey, JSON.stringify(next)) }
-  const chooseUser = (name: Account['name']) => { setSelected(name); setPassword(''); setConfirm(''); setFullName(''); setMessage(''); setMode('login') }
+  const current = accounts.find((account) => account.name === selected) || accounts[0]
+
+  // Si los usuarios cambian (por ejemplo, el admin crea uno nuevo), ajustamos el seleccionado
+  useEffect(() => {
+    if (!accounts.some((a) => a.name === selected) && accounts[0]) {
+      setSelected(accounts[0].name)
+    }
+  }, [accounts, selected])
+
+  if (!current) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-panel">
+          <div className="auth-brand">
+            <div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div>
+            <div><strong>SEC-CAR</strong><span>Seminario de Educación Cristiana Caranavi</span></div>
+          </div>
+          <div className="auth-copy">
+            <span className="eyebrow">SIN USUARIOS</span>
+            <h1>No hay cuentas configuradas</h1>
+            <p>Contacta al responsable del sistema para que cree una cuenta desde el panel de administración.</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const persist = (next: Account[]) => onChangeAccounts(next)
+
+  const chooseUser = (name: string) => {
+    setSelected(name); setPassword(''); setConfirm(''); setFullName(''); setMessage(''); setMode('login')
+  }
 
   const submit = () => {
     if (mode === 'first') {
@@ -44,7 +79,7 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
       setMode('login'); setPassword(''); setConfirm(''); setFullName(''); return
     }
     if (password && password === current.password && !current.needsPassword) { onLogin(selected); return }
-    setMessage('La contraseña no coincide. Si la olvidaste, usa “Recuperar acceso”.')
+    setMessage('La contraseña no coincide. Si la olvidaste, usa "Recuperar acceso".')
   }
 
   const resetAccess = () => {
@@ -53,16 +88,122 @@ function AccessScreen({ onLogin }: { onLogin: (name: Account['name']) => void })
     setPassword(''); setMessage(`Acceso de ${selected} reiniciado. Deberá crear una contraseña nueva al ingresar.`); setMode('login')
   }
 
-  return <div className="auth-shell"><div className="auth-panel"><div className="auth-brand"><div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Seminario de Educación Cristiana Caranavi</span></div></div>
-    <div className="auth-copy"><span className="eyebrow">ACCESO PRIVADO</span><h1>{mode === 'recovery' ? 'Recuperar acceso' : mode === 'first' ? 'Crea tu contraseña' : 'Bienvenido de nuevo'}</h1><p>{mode === 'recovery' ? 'El responsable puede reiniciar el acceso de una de las dos cuentas autorizadas.' : mode === 'first' ? `Es la primera vez que ingresa ${selected}. Define una contraseña personal para continuar.` : 'Ingresa con tu cuenta para registrar y consultar los movimientos del centro.'}</p></div>
-    {mode !== 'recovery' && <><div className="user-picker"><span>¿Quién eres?</span><div>{(['Melitza Huanca', 'Ovet Zúñiga'] as const).map((name) => <button key={name} className={selected === name ? 'user-choice selected' : 'user-choice'} onClick={() => chooseUser(name)}><span className="auth-avatar">{name[0]}</span><span><strong>{name}</strong><small>{accounts.find((account) => account.name === name)?.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small></span>{selected === name && <b>✓</b>}</button>)}</div></div>{mode === 'first' && <label className="auth-label">Nombre y apellido<input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Huanca" /></label>}<label className="auth-label">{mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" /></label>{mode === 'first' && <label className="auth-label">Confirmar contraseña<input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseña" /></label>}<button className="auth-submit" onClick={() => current.needsPassword && mode === 'login' ? setMode('first') : submit()}>{current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span></button><button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button></>}
-    {mode === 'recovery' && <><div className="recovery-card"><p>Selecciona la cuenta que necesita volver a configurarse.</p><div className="recovery-users">{(['Melitza Huanca', 'Ovet Zúñiga'] as const).map((name) => <button key={name} className={selected === name ? 'selected' : ''} onClick={() => setSelected(name)}>{name}<span>{selected === name ? 'Seleccionada' : 'Seleccionar'}</span></button>)}</div><label className="auth-label">Clave administrativa<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="La define el responsable" /></label><button className="auth-submit" onClick={resetAccess}>Reiniciar acceso de {selected} <span>↻</span></button></div><button className="auth-link" onClick={() => { setMode('login'); setPassword(''); setMessage('') }}>Volver al ingreso</button></>}
-    {message && <div className="auth-message">{message}</div>}<div className="auth-footer"><span className="sync-dot"></span> Sistema listo para sincronizar con Supabase</div>
-    <p className="auth-verse">"Todo lo que hagáis, hacedlo de corazón, como para el Señor y no para los hombres" — Colosenses 3:23<br />"Se requiere que el administrador, sea hallado fiel" — 1 Corintios 4:2</p>
-  </div><div className="auth-visual"><div className="visual-note"><span>CONTROL FINANCIERO</span><strong>Recibos claros.<br />Cuentas en orden.</strong><p>Ingresos, egresos y pagos parciales en un solo lugar.</p></div><div className="visual-receipt"><small>SEC-CAR · RECIBO DE PAGO</small><strong>Bs 250.00</strong><span>ORIGINAL + COPIA ADMINISTRACIÓN</span></div></div></div>
+  return (
+    <div className="auth-shell">
+      <div className="auth-panel">
+        <div className="auth-brand">
+          <div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div>
+          <div><strong>SEC-CAR</strong><span>Seminario de Educación Cristiana Caranavi</span></div>
+        </div>
+        <div className="auth-copy">
+          <span className="eyebrow">ACCESO PRIVADO</span>
+          <h1>{mode === 'recovery' ? 'Recuperar acceso' : mode === 'first' ? 'Crea tu contraseña' : 'Bienvenido de nuevo'}</h1>
+          <p>
+            {mode === 'recovery'
+              ? 'El responsable puede reiniciar el acceso de las cuentas autorizadas.'
+              : mode === 'first'
+              ? `Es la primera vez que ingresa ${selected}. Define una contraseña personal para continuar.`
+              : 'Ingresa con tu cuenta para registrar y consultar los movimientos del centro.'}
+          </p>
+        </div>
+
+        {mode !== 'recovery' && (
+          <>
+            <div className="user-picker">
+              <span>¿Quién eres?</span>
+              <div>
+                {accounts.filter((a) => a.active).map((account) => (
+                  <button
+                    key={account.id}
+                    className={selected === account.name ? 'user-choice selected' : 'user-choice'}
+                    onClick={() => chooseUser(account.name)}
+                  >
+                    <span className="auth-avatar">{account.name[0]}</span>
+                    <span>
+                      <strong>{account.name}</strong>
+                      <small>{account.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small>
+                    </span>
+                    {selected === account.name && <b>✓</b>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {mode === 'first' && (
+              <label className="auth-label">
+                Nombre y apellido
+                <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Huanca" />
+              </label>
+            )}
+            <label className="auth-label">
+              {mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" />
+            </label>
+            {mode === 'first' && (
+              <label className="auth-label">
+                Confirmar contraseña
+                <input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseña" />
+              </label>
+            )}
+            <button
+              className="auth-submit"
+              onClick={() => (current.needsPassword && mode === 'login' ? setMode('first') : submit())}
+            >
+              {current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span>
+            </button>
+            <button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button>
+          </>
+        )}
+
+        {mode === 'recovery' && (
+          <>
+            <div className="recovery-card">
+              <p>Selecciona la cuenta que necesita volver a configurarse.</p>
+              <div className="recovery-users">
+                {accounts.map((account) => (
+                  <button
+                    key={account.id}
+                    className={selected === account.name ? 'selected' : ''}
+                    onClick={() => setSelected(account.name)}
+                  >
+                    {account.name}
+                    <span>{selected === account.name ? 'Seleccionada' : 'Seleccionar'}</span>
+                  </button>
+                ))}
+              </div>
+              <label className="auth-label">
+                Clave administrativa
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="La define el responsable" />
+              </label>
+              <button className="auth-submit" onClick={resetAccess}>Reiniciar acceso de {selected} <span>↻</span></button>
+            </div>
+            <button className="auth-link" onClick={() => { setMode('login'); setPassword(''); setMessage('') }}>Volver al ingreso</button>
+          </>
+        )}
+
+        {message && <div className="auth-message">{message}</div>}
+        <div className="auth-footer"><span className="sync-dot"></span> Sistema listo para sincronizar con Supabase</div>
+        <p className="auth-verse">"Todo lo que hagáis, hacedlo de corazón, como para el Señor y no para los hombres" — Colosenses 3:23<br />"Se requiere que el administrador, sea hallado fiel" — 1 Corintios 4:2</p>
+      </div>
+      <div className="auth-visual">
+        <div className="visual-note">
+          <span>CONTROL FINANCIERO</span>
+          <strong>Recibos claros.<br />Cuentas en orden.</strong>
+          <p>Ingresos, egresos y pagos parciales en un solo lugar.</p>
+        </div>
+        <div className="visual-receipt">
+          <small>SEC-CAR · RECIBO DE PAGO</small>
+          <strong>Bs 250.00</strong>
+          <span>ORIGINAL + COPIA ADMINISTRACIÓN</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-// Persiste cualquier estado en localStorage bajo la clave dada
+// ============================================================
+// HOOK DE PERSISTENCIA LOCAL
+// ============================================================
 function usePersistedState<T>(key: string, initial: T) {
   const [state, setState] = useState<T>(() => {
     const stored = localStorage.getItem(key)
@@ -72,19 +213,23 @@ function usePersistedState<T>(key: string, initial: T) {
   return [state, setState] as const
 }
 
+// ============================================================
+// UTILIDADES
+// ============================================================
 const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const formatDate = (iso: string) => { const d = new Date(`${iso}T00:00:00`); return `${String(d.getDate()).padStart(2, '0')} ${monthNames[d.getMonth()]} ${d.getFullYear()}` }
 const todayISO = () => new Date().toISOString().slice(0, 10)
-// Indica si una fecha ISO (YYYY-MM-DD) cae dentro del rango elegido; un extremo vacío no limita la búsqueda
 const dateInRange = (date: string, start: string, end: string) => (!start || date >= start) && (!end || date <= end)
 const money = (value: number) => `Bs ${value.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`
 const nextCode = (prefix: string, count: number) => `${prefix}-${String(count).padStart(5, '0')}`
 
-type Payment = { id: string; receipt: string; person: string; carnet: string; phone: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
-type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: Account['name'] }
+// ============================================================
+// TIPOS DE DATOS
+// ============================================================
+type Payment = { id: string; receipt: string; person: string; carnet: string; phone: string; concept: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: string }
+type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: string }
 type Person = { id: string; name: string; carnet: string; phone: string; notes: string }
 
-// Clasifica el avance de pago de una persona respecto al precio de un evento
 type PaymentStanding = 'completo' | 'mitad' | 'menos-mitad' | 'sin-precio'
 const standingOf = (paid: number, price: number): PaymentStanding => {
   if (!price) return 'sin-precio'
@@ -93,6 +238,9 @@ const standingOf = (paid: number, price: number): PaymentStanding => {
   return 'menos-mitad'
 }
 
+// ============================================================
+// DATOS INICIALES DE EJEMPLO
+// ============================================================
 const initialPayments: Payment[] = [
   { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', carnet: '', phone: '', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
   { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', carnet: '', phone: '', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
@@ -109,24 +257,38 @@ const initialEventOptions = ['Campamento juvenil', 'Seminario de liderazgo', 'Re
 const initialCategoryOptions = ['Servicios básicos', 'Mantenimiento', 'Materiales y suministros', 'Alimentación', 'Transporte', 'Honorarios', 'Otros']
 const initialPeople: Person[] = []
 const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Clientes'] as const
-// Solo esta cuenta puede crear, editar precio o quitar eventos
-const eventManager: Account['name'] = 'Ovet Zúñiga'
+const eventManager = 'Ovet Zúñiga'
 
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
 function App() {
-  const [loggedUser, setLoggedUser] = useState<Account['name'] | null>(null)
+  const [loggedUser, setLoggedUser] = useState<string | null>(null)
   const [activePage, setActivePage] = useState<string>('Resumen')
 
+  // Cuentas del sistema (nuevo esquema)
+  const [accounts, setAccounts] = useState<Account[]>(() => seedIfEmpty(loadAccounts()))
+  useEffect(() => { saveAccounts(accounts) }, [accounts])
+
+  // Control del panel de administración
+  const [showUserManagement, setShowUserManagement] = useState(false)
+
+  const currentUser = useMemo(
+    () => accounts.find((a) => a.name === loggedUser) ?? null,
+    [accounts, loggedUser]
+  )
+  const isPrimaryAdmin = currentUser?.name === PRIMARY_ADMIN
+
+  // Estados persistentes del sistema
   const [payments, setPayments] = usePersistedState<Payment[]>('sec-car-payments', initialPayments)
   const [expenses, setExpenses] = usePersistedState<Expense[]>('sec-car-expenses', initialExpenses)
   const [eventOptions, setEventOptions] = usePersistedState<string[]>('sec-car-events', initialEventOptions)
   const [categoryOptions, setCategoryOptions] = usePersistedState<string[]>('sec-car-categories', initialCategoryOptions)
   const [people, setPeople] = usePersistedState<Person[]>('sec-car-people', initialPeople)
   const [eventPrices, setEventPrices] = usePersistedState<Record<string, number>>('sec-car-event-prices', {})
-  const [accounts, setAccounts] = usePersistedState<Account[]>(accountsKey, defaultAccounts)
   const [fullNameDraft, setFullNameDraft] = useState('')
   const [theme, setTheme] = usePersistedState<'light' | 'dark'>('sec-car-theme', 'light')
 
-  // Rango de fechas (YYYY-MM-DD) para consultar ingresos y egresos; un campo vacío significa sin límite
   const [filterStartDate, setFilterStartDate] = usePersistedState('sec-car-filter-start', '')
   const [filterEndDate, setFilterEndDate] = usePersistedState('sec-car-filter-end', '')
 
@@ -146,11 +308,9 @@ function App() {
   const [incomeForm, setIncomeForm] = useState({ person: '', carnet: '', phone: '', concept: '', cash: '', qr: '' })
   const [expenseForm, setExpenseForm] = useState({ concept: '', recipient: '', category: '', cash: '', qr: '' })
   const [personForm, setPersonForm] = useState({ name: '', carnet: '', phone: '', notes: '' })
-  // Edición de un cliente del directorio: se guarda el id que se está editando y una copia de sus datos en el formulario
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null)
   const [personEditForm, setPersonEditForm] = useState({ name: '', carnet: '', phone: '', notes: '' })
   const [personMessage, setPersonMessage] = useState('')
-  // Cliente que se quiere quitar del directorio; se pide confirmación antes de borrarlo
   const [pendingDelete, setPendingDelete] = useState<Person | null>(null)
   const [confirmClear, setConfirmClear] = useState('')
   const receiptPaperRef = useRef<HTMLDivElement | null>(null)
@@ -159,16 +319,11 @@ function App() {
 
   useEffect(() => {
     if (loggedUser) setFullNameDraft(accounts.find((account) => account.name === loggedUser)?.fullName || '')
-  }, [loggedUser])
+  }, [loggedUser, accounts])
 
-  // Migra registros guardados con los nombres cortos anteriores (Melitza/Ovet) a los nombres completos actuales
-  useEffect(() => {
-    setAccounts((prev) => prev.map((account) => ({ ...account, name: migrateAccountName(account.name as unknown as string) })))
-    setPayments((prev) => prev.map((payment) => payment.issuedBy ? { ...payment, issuedBy: migrateAccountName(payment.issuedBy as unknown as string) } : payment))
-    setExpenses((prev) => prev.map((expense) => expense.issuedBy ? { ...expense, issuedBy: migrateAccountName(expense.issuedBy as unknown as string) } : expense))
-  }, [])
-
-  // Convierte el comprobante en imagen y lo comparte por WhatsApp (o lo descarga como respaldo)
+  // ============================================================
+  // COMPARTIR COMPROBANTES POR IMAGEN
+  // ============================================================
   const shareAsImage = async (node: HTMLDivElement | null, fileName: string, caption: string) => {
     if (!node) return
     setSharingReceipt(true)
@@ -192,22 +347,27 @@ function App() {
     }
   }
 
-  // Una copia para el cliente y otra para el archivo administrativo, ambas completas para imprimir juntas
+  // ============================================================
+  // RENDERIZADO DE COMPROBANTES
+  // ============================================================
   const renderReceiptCopy = (payment: Payment, copy: 'cliente' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
-  <div className="receipt-paper" ref={ref}>
-    <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana Caranavi</small></div>
-    <div className="receipt-type">RECIBO DE PAGO <strong>{payment.receipt}</strong></div>
-    <div className="receipt-line"><span>Recibí de:</span><b>{payment.person}</b></div>
-    {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
-    {payment.phone && <div className="receipt-line"><span>N.º de celular:</span><b>{payment.phone}</b></div>}
-    <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
-    <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
-    <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
-    <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
-    <div className="signature-row">{copy === 'administración' && <div className="signature-col"><span className="signature-name">{payment.person}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(payment.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
-    <div className="copy-mark">{copy === 'cliente' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
-  </div>
-)
+    <div className="receipt-paper" ref={ref}>
+      <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana Caranavi</small></div>
+      <div className="receipt-type">RECIBO DE PAGO <strong>{payment.receipt}</strong></div>
+      <div className="receipt-line"><span>Recibí de:</span><b>{payment.person}</b></div>
+      {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
+      {payment.phone && <div className="receipt-line"><span>N.º de celular:</span><b>{payment.phone}</b></div>}
+      <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
+      <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
+      <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
+      <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
+      <div className="signature-row">
+        {copy === 'administración' && <div className="signature-col"><span className="signature-name">{payment.person}</span><span className="signature-role">INTERESADO</span></div>}
+        <div className="signature-col"><span className="signature-name">{accountFullName(payment.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div>
+      </div>
+      <div className="copy-mark">{copy === 'cliente' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
+    </div>
+  )
 
   const renderVoucherCopy = (expense: Expense, copy: 'beneficiario' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
     <div className="receipt-paper" ref={ref}>
@@ -219,12 +379,17 @@ function App() {
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(expense.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(expense.amount)}</strong></div>
       <div className="receipt-methods"><span>Efectivo {money(expense.cash)}</span><span>QR {money(expense.qr)}</span></div>
-      <div className="signature-row">{copy === 'administración' && <div className="signature-col"><span className="signature-name">{expense.recipient}</span><span className="signature-role">INTERESADO</span></div>}<div className="signature-col"><span className="signature-name">{accountFullName(expense.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div></div>
+      <div className="signature-row">
+        {copy === 'administración' && <div className="signature-col"><span className="signature-name">{expense.recipient}</span><span className="signature-role">INTERESADO</span></div>}
+        <div className="signature-col"><span className="signature-name">{accountFullName(expense.issuedBy)}</span><span className="signature-role">ADMINISTRADOR</span></div>
+      </div>
       <div className="copy-mark">{copy === 'beneficiario' ? 'ORIGINAL' : 'COPIA'} <span>·</span> PARA {copy.toUpperCase()}</div>
     </div>
   )
 
-  // Registros que caen dentro del rango de fechas elegido (si el rango está vacío, se toman todos)
+  // ============================================================
+  // CÁLCULOS DERIVADOS
+  // ============================================================
   const hasDateFilter = Boolean(filterStartDate || filterEndDate)
   const rangePayments = useMemo(() => payments.filter((p) => dateInRange(p.date, filterStartDate, filterEndDate)), [payments, filterStartDate, filterEndDate])
   const rangeExpenses = useMemo(() => expenses.filter((e) => dateInRange(e.date, filterStartDate, filterEndDate)), [expenses, filterStartDate, filterEndDate])
@@ -252,7 +417,6 @@ function App() {
     return [...incomes, ...outs].filter((m) => dateInRange(m.date, filterStartDate, filterEndDate)).sort((a, b) => b.date.localeCompare(a.date))
   }, [payments, expenses, filterStartDate, filterEndDate])
 
-  // Agrupa los pagos activos de un evento por persona (nombre en minúsculas)
   const payersOfEvent = (eventName: string) => {
     const related = activeIncome.filter((p) => p.concept === eventName)
     const byPerson = new Map<string, { person: string; carnet: string; phone: string; paid: number; count: number }>()
@@ -277,7 +441,6 @@ function App() {
     return { name, count: related.length, total: related.reduce((sum, p) => sum + p.amount, 0), price, payers, completo, mitad, menosMitad }
   })
 
-  // Para cada persona, calcula lo pagado, adeudado y el detalle por evento
   const peopleWithTotals = people.map((person) => {
     const related = payments.filter((p) => p.person.toLowerCase() === person.name.toLowerCase() && p.status === 'Aplicado')
     const total = related.reduce((sum, p) => sum + p.amount, 0)
@@ -289,13 +452,18 @@ function App() {
     const totalDue = events.reduce((sum, ev) => sum + ev.remaining, 0)
     return { ...person, total, count: related.length, events, totalDue, receipts: related }
   })
-  const undirectoried = Array.from(new Set(payments.map((p) => p.person))).filter((name) => !people.some((person) => person.name.toLowerCase() === name.toLowerCase())).map((name) => ({ name, carnet: payments.find((p) => p.person === name && p.carnet)?.carnet || '', phone: payments.find((p) => p.person === name && p.phone)?.phone || '' }))
+
+  const undirectoried = Array.from(new Set(payments.map((p) => p.person)))
+    .filter((name) => !people.some((person) => person.name.toLowerCase() === name.toLowerCase()))
+    .map((name) => ({
+      name,
+      carnet: payments.find((p) => p.person === name && p.carnet)?.carnet || '',
+      phone: payments.find((p) => p.person === name && p.phone)?.phone || '',
+    }))
 
   const filteredPeople = useMemo(() => peopleWithTotals.filter((person) => `${person.name} ${person.carnet} ${person.phone}`.toLowerCase().includes(peopleQuery.toLowerCase())), [peopleWithTotals, peopleQuery])
-  // Datos de totales del cliente que se está por eliminar, para avisar cuántos recibos y cuánto dinero tiene registrado
   const pendingDeleteRecord = pendingDelete ? peopleWithTotals.find((person) => person.id === pendingDelete.id) : null
 
-  // Coincidencia por nombre, carnet o teléfono, usada en el atajo de búsqueda de Ingresos
   const findPersonMatch = (term: string) => {
     const clean = term.trim().toLowerCase()
     if (!clean) return null
@@ -308,7 +476,6 @@ function App() {
     return byName || byCarnet || byPhone
   }, [incomeForm.person, incomeForm.carnet, incomeForm.phone, peopleWithTotals])
 
-  // Al elegir un nombre/carnet/teléfono que coincide exacto con un cliente ya guardado, completa el resto de sus datos
   const fillIncomeField = (field: 'person' | 'carnet' | 'phone', value: string) => {
     const match = findPersonMatch(value)
     setIncomeForm((prev) => {
@@ -316,13 +483,15 @@ function App() {
       return { ...prev, person: match.name, carnet: match.carnet || prev.carnet, phone: match.phone || prev.phone, [field]: value }
     })
   }
-  // Solo muestra sugerencias una vez que el usuario empieza a escribir, no al hacer clic en un campo vacío
   const suggestionsFor = (value: string, options: string[]) => {
     const clean = value.trim().toLowerCase()
     if (!clean) return []
     return options.filter((option) => option.toLowerCase().includes(clean))
   }
 
+  // ============================================================
+  // ACCIONES
+  // ============================================================
   const saveIncome = () => {
     const cash = Number(incomeForm.cash) || 0
     const qr = Number(incomeForm.qr) || 0
@@ -355,27 +524,25 @@ function App() {
 
   const toggleIncomeStatus = (id: string) => setPayments(payments.map((p) => p.id === id ? { ...p, status: p.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : p))
   const toggleExpenseStatus = (id: string) => setExpenses(expenses.map((e) => e.id === id ? { ...e, status: e.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : e))
-  const canManage = (owner?: Account['name']) => !owner || owner === loggedUser
-  // Nombre y apellido a mostrar en la firma de administrador; si no fue definido, usa el nombre de la cuenta
-  const accountFullName = (name?: Account['name']) => (name && accounts.find((account) => account.name === name)?.fullName.trim()) || name || 'Administrador'
+  const canManage = (owner?: string) => !owner || owner === loggedUser
+  const accountFullName = (name?: string) => (name && accounts.find((account) => account.name === name)?.fullName.trim()) || name || 'Administrador'
   const saveFullName = () => { if (!loggedUser || !fullNameDraft.trim()) return; setAccounts(accounts.map((account) => account.name === loggedUser ? { ...account, fullName: fullNameDraft.trim() } : account)) }
   const addEventOption = () => { if (loggedUser !== eventManager) return; const name = newEventName.trim(); if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name]); setNewEventName('') }
   const removeEventOption = (name: string) => { if (loggedUser !== eventManager) return; setEventOptions(eventOptions.filter((option) => option !== name)) }
   const setEventPrice = (name: string, value: string) => { if (loggedUser !== eventManager) return; setEventPrices({ ...eventPrices, [name]: Number(value) || 0 }) }
+
   const addPerson = () => {
     if (!personForm.name.trim()) return
     setPeople([...people, { id: crypto.randomUUID(), name: personForm.name.trim(), carnet: personForm.carnet.trim(), phone: personForm.phone.trim(), notes: personForm.notes.trim() }])
     setPersonForm({ name: '', carnet: '', phone: '', notes: '' })
   }
   const removePerson = (id: string) => setPeople(people.filter((person) => person.id !== id))
-  // Abre la ficha del cliente con sus datos actuales para poder corregirlos
   const startEditPerson = (person: Person) => {
     setEditingPersonId(person.id)
     setPersonEditForm({ name: person.name, carnet: person.carnet, phone: person.phone, notes: person.notes })
     setPersonMessage('')
   }
   const closeEditPerson = () => { setEditingPersonId(null); setPersonMessage('') }
-  // Guarda los cambios del cliente; si cambia el nombre, también se actualizan sus recibos para no perder su historial ni sus totales
   const savePersonEdit = () => {
     const target = people.find((person) => person.id === editingPersonId)
     if (!target) return
@@ -388,7 +555,6 @@ function App() {
     const carnet = personEditForm.carnet.trim()
     const phone = personEditForm.phone.trim()
     setPeople(people.map((person) => person.id === target.id ? { ...person, name, carnet, phone, notes: personEditForm.notes.trim() } : person))
-    // Solo se tocan los recibos si cambió el nombre (para que el historial siga vinculado) o si hay carnet/teléfono nuevos que completar
     if (target.name.toLowerCase() !== name.toLowerCase() || carnet !== target.carnet || phone !== target.phone) {
       setPayments(payments.map((payment) => payment.person.toLowerCase() === target.name.toLowerCase()
         ? { ...payment, person: name, carnet: payment.carnet || carnet, phone: payment.phone || phone }
@@ -418,299 +584,463 @@ function App() {
     setPayments([]); setExpenses([]); setConfirmClear('')
   }
 
-  if (!loggedUser) return <AccessScreen onLogin={(name) => { setAccounts(readAccounts()); setLoggedUser(name) }} />
+  // ============================================================
+  // RENDER: PANTALLA DE ACCESO
+  // ============================================================
+  if (!loggedUser) {
+    return (
+      <AccessScreen
+        accounts={accounts}
+        onChangeAccounts={setAccounts}
+        onLogin={(name) => setLoggedUser(name)}
+      />
+    )
+  }
 
-  return <div className={`app-shell ${theme}`}>
-    <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Administración</span></div></div>
-      <div className="side-label">GESTIÓN</div>
-      <nav>{navItems.map((item) => <button key={item} className={activePage === item ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage(item)}><span className="nav-icon">{item === 'Resumen' ? '▦' : item === 'Ingresos' ? '↗' : item === 'Egresos' ? '↘' : item === 'Eventos' ? '◷' : '♙'}</span>{item}</button>)}</nav>
-      <div className="side-label report-label">REPORTES</div>
-      <button className={activePage === 'Reportes' ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage('Reportes')}><span className="nav-icon">▤</span>Reportes</button>
-      <div className="sidebar-bottom">
-        <div className="sync"><span className="sync-dot"></span><div><strong>Sincronizado</strong><small>Todos los cambios guardados</small></div></div>
-        <div className="profile"><div className="avatar">{loggedUser[0]}</div><div><strong>{loggedUser}</strong><small>Administrador</small></div><button className="logout-button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={() => setLoggedUser(null)}>⏻</button></div>
-      </div>
-    </aside>
-    <main className="main-content">
-      <header className="topbar"><div><span className="eyebrow">Seminario de Educación Cristiana Caranavi</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div><div className="top-actions"><button className="icon-button" aria-label="Cambiar tema" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☀' : '☾'}</button><button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button><div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div></div></header>
-      {/* Filtro para buscar ingresos y egresos por rango de fechas */}
-      {(activePage === 'Resumen' || activePage === 'Ingresos' || activePage === 'Egresos') && <section className="filter-row">
-        <span className="filter-title">Filtrar por fecha</span>
-        <label>Desde<input type="date" value={filterStartDate} onChange={(event) => setFilterStartDate(event.target.value)} /></label>
-        <label>Hasta<input type="date" value={filterEndDate} onChange={(event) => setFilterEndDate(event.target.value)} /></label>
-        <div className="filter-summary">
-          <span>Ingresos: <b>{rangePayments.length}</b> recibos · <b>{money(rangeIncomeTotal)}</b></span>
-          <span>Egresos: <b>{rangeExpenses.length}</b> pagos · <b>{money(rangeExpenseTotal)}</b></span>
+  // ============================================================
+  // RENDER: APP PRINCIPAL
+  // ============================================================
+  return (
+    <div className={`app-shell ${theme}`}>
+      <aside className="sidebar">
+        <div className="brand"><div className="brand-mark"><img src="/logo-seccar.png" alt="SEC-CAR" /></div><div><strong>SEC-CAR</strong><span>Administración</span></div></div>
+        <div className="side-label">GESTIÓN</div>
+        <nav>
+          {navItems.map((item) => (
+            <button key={item} className={activePage === item ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage(item)}>
+              <span className="nav-icon">{item === 'Resumen' ? '▦' : item === 'Ingresos' ? '↗' : item === 'Egresos' ? '↘' : item === 'Eventos' ? '◷' : '♙'}</span>
+              {item}
+            </button>
+          ))}
+        </nav>
+        <div className="side-label report-label">REPORTES</div>
+        <button className={activePage === 'Reportes' ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage('Reportes')}><span className="nav-icon">▤</span>Reportes</button>
+
+        {/* Panel de administración visible SOLO para el administrador principal (Ovet Zúñiga) */}
+        {isPrimaryAdmin && (
+          <>
+            <div className="side-label report-label">ADMINISTRACIÓN</div>
+            <button className="nav-item" onClick={() => setShowUserManagement(true)}>
+              <span className="nav-icon">⚙</span>Usuarios
+            </button>
+          </>
+        )}
+
+        <div className="sidebar-bottom">
+          <div className="sync"><span className="sync-dot"></span><div><strong>Sincronizado</strong><small>Todos los cambios guardados</small></div></div>
+          <div className="profile">
+            <div className="avatar">{loggedUser[0]}</div>
+            <div><strong>{loggedUser}</strong><small>{currentUser?.role === 'admin' ? 'Administrador' : 'Usuario'}</small></div>
+            <button className="logout-button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={() => setLoggedUser(null)}>⏻</button>
+          </div>
         </div>
-        {hasDateFilter
-          ? <button className="filter-clear" onClick={() => { setFilterStartDate(''); setFilterEndDate('') }}>Limpiar fechas</button>
-          : <span className="filter-hint">Sin fechas elegidas: se muestran todos los movimientos.</span>}
-      </section>}
-      {activePage === 'Resumen' && <>
-        <section className="hero-row"><div><h2>Bienvenido(@), {loggedUser} <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div><div className="hero-actions"><button className="outline-button" onClick={() => setShowExpenseModal(true)}><span>−</span> Nuevo egreso</button><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div></section>
-        <section className="stats-grid">
-          <div className="stat-card accent-card"><div className="stat-head"><span>INGRESOS DEL MES</span><i>↗</i></div><strong>{money(incomeThisMonth)}</strong><small><b className="dark">{incomeThisMonthList.length} recibos</b> este mes</small></div>
-          <div className="stat-card"><div className="stat-head"><span>EGRESOS DEL MES</span><i className="rose-icon">↘</i></div><strong>{money(expenseThisMonth)}</strong><small><b className="dark">{expenseThisMonthList.length} egresos</b> este mes</small></div>
-          <div className="stat-card"><div className="stat-head"><span>SALDO ACTUAL</span><i className="green-icon">◈</i></div><strong>{money(balance)}</strong><small><b className={balance >= 0 ? 'dark' : 'rose-text'}>{balance >= 0 ? 'Saldo positivo' : 'Saldo negativo'}</b></small></div>
-        </section>
-        <section className="content-grid">
-          <div className="panel transactions">
-            <div className="panel-head"><div><h3>Últimos movimientos</h3><p>Ingresos y egresos más recientes</p></div><button className="text-button" onClick={() => setActivePage('Ingresos')}>Ver todos <span>→</span></button></div>
-            <div className="table-wrap"><table><thead><tr><th>CÓDIGO</th><th>TIPO</th><th>DETALLE</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th></tr></thead><tbody>
-              {movements.slice(0, 6).map((m) => <tr key={`${m.type}-${m.id}`}>
-                <td>{m.code}</td>
-                <td><span className={m.type === 'Ingreso' ? 'status' : 'status void'}>{m.type}</span></td>
-                <td className="person-cell"><span className="tiny-avatar">{m.label[0]}</span><span>{m.label}<span className="method">{m.concept}</span></span></td>
-                <td>{formatDate(m.date)}</td>
-                <td>{money(m.amount)}</td>
-                <td><span className={m.status === 'Aplicado' ? 'status' : 'status void'}>{m.status}</span></td>
-              </tr>)}
-              {movements.length === 0 && <tr><td className="empty-cell" colSpan={6}>No hay movimientos en las fechas elegidas.</td></tr>}
-            </tbody></table></div>
+      </aside>
+
+      <main className="main-content">
+        <header className="topbar">
+          <div><span className="eyebrow">Seminario de Educación Cristiana Caranavi</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div>
+          <div className="top-actions">
+            <button className="icon-button" aria-label="Cambiar tema" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☀' : '☾'}</button>
+            <button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button>
+            <div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div>
           </div>
-          <div className="panel events">
-            <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Sugerencias usadas al emitir recibos</p></div><button className="text-button" onClick={() => setActivePage('Eventos')}>Gestionar <span>→</span></button></div>
-            {eventStats.length === 0 && <p className="empty-hint">Aún no hay eventos registrados.</p>}
-            {eventStats.map((stat) => <div className="event-item" key={stat.name}><div className="event-date"><b>{stat.count}</b><span>recibos</span></div><div><strong>{stat.name}</strong><small>{money(stat.total)} recaudados</small></div></div>)}
-          </div>
-        </section>
-      </>}
+        </header>
 
-      {activePage === 'Ingresos' && <section className="panel transactions">
-        <div className="panel-head"><div><h3>Ingresos</h3><p>Todos los recibos emitidos</p></div><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div>
-        <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, carnet, teléfono, concepto o recibo..." /></div></div>
-        <div className="table-wrap"><table><thead><tr><th>RECIBO</th><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
-          {filteredPayments.map((payment) => <tr key={payment.id}>
-            <td><button className="receipt-link" onClick={() => { setSelectedReceipt(payment); setShowReceipt(true) }}>{payment.receipt}</button></td>
-            <td className="person-cell"><span className="tiny-avatar">{payment.person[0]}</span>{payment.person}</td>
-            <td>{payment.carnet || '—'}</td>
-            <td>{payment.phone || '—'}</td>
-            <td>{payment.concept}</td>
-            <td>{formatDate(payment.date)}</td>
-            <td>{money(payment.amount)}<span className="method">Efectivo {money(payment.cash)} · QR {money(payment.qr)}</span></td>
-            <td>{payment.issuedBy || '—'}</td>
-            <td><span className={payment.status === 'Aplicado' ? 'status' : 'status void'}>{payment.status}</span></td>
-            <td>{canManage(payment.issuedBy) ? <button className="status-toggle" onClick={() => toggleIncomeStatus(payment.id)}>{payment.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {payment.issuedBy}</span>}</td>
-          </tr>)}
-          {filteredPayments.length === 0 && <tr><td className="empty-cell" colSpan={10}>No hay recibos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
-        </tbody></table></div>
-      </section>}
-
-
-      {activePage === 'Egresos' && <section className="panel transactions">
-        <div className="panel-head"><div><h3>Egresos</h3><p>Todos los pagos y gastos registrados</p></div><button className="primary-button" onClick={() => setShowExpenseModal(true)}><span>＋</span> Nuevo egreso</button></div>
-        <div className="filters"><div className="search"><span>⌕</span><input value={expenseQuery} onChange={(event) => setExpenseQuery(event.target.value)} placeholder="Buscar por destinatario, categoría o comprobante..." /></div></div>
-        <div className="table-wrap"><table><thead><tr><th>COMPROBANTE</th><th>DESTINATARIO</th><th>CONCEPTO</th><th>CATEGORÍA</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead><tbody>
-          {filteredExpenses.map((expense) => <tr key={expense.id}>
-            <td><button className="receipt-link" onClick={() => { setSelectedVoucher(expense); setShowVoucher(true) }}>{expense.voucher}</button></td>
-            <td className="person-cell"><span className="tiny-avatar">{expense.recipient[0]}</span>{expense.recipient}</td>
-            <td>{expense.concept}</td>
-            <td>{expense.category}</td>
-            <td>{formatDate(expense.date)}</td>
-            <td>{money(expense.amount)}<span className="method">Efectivo {money(expense.cash)} · QR {money(expense.qr)}</span></td>
-            <td>{expense.issuedBy || '—'}</td>
-            <td><span className={expense.status === 'Aplicado' ? 'status' : 'status void'}>{expense.status}</span></td>
-            <td>{canManage(expense.issuedBy) ? <button className="status-toggle" onClick={() => toggleExpenseStatus(expense.id)}>{expense.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {expense.issuedBy}</span>}</td>
-          </tr>)}
-          {filteredExpenses.length === 0 && <tr><td className="empty-cell" colSpan={9}>No hay egresos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
-        </tbody></table></div>
-      </section>}
-
-      {activePage === 'Eventos' && <section className="panel">
-        <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Estas sugerencias aparecen al registrar un ingreso; el campo de concepto siempre acepta texto libre.{loggedUser !== eventManager && ' Solo Ovet Zúñiga puede crear, editar el precio o quitar eventos.'}</p></div></div>
-        {loggedUser === eventManager && <div className="inline-form">
-          <label>Nuevo evento o concepto<input value={newEventName} onChange={(event) => setNewEventName(event.target.value)} placeholder="Ej. Retiro de varones 2025" /></label>
-          <button className="primary-button" onClick={addEventOption}>Agregar</button>
-        </div>}
-        <div className="event-detail-list">
-          {eventStats.map((stat) => <div className="event-detail-card" key={stat.name}>
-            <div className="event-detail-head">
-              <div><strong>{stat.name}</strong><small>{stat.count} recibos · {money(stat.total)} recaudados</small></div>
-              {loggedUser === eventManager ? <><label className="price-field">Precio del evento (Bs)<input type="number" value={stat.price || ''} onChange={(event) => setEventPrice(stat.name, event.target.value)} placeholder="0.00" /></label>
-              <button onClick={() => removeEventOption(stat.name)} aria-label={`Quitar ${stat.name}`}>×</button></> : <span className="price-field">Precio del evento<strong>{stat.price ? money(stat.price) : 'Sin definir'}</strong></span>}
+        {(activePage === 'Resumen' || activePage === 'Ingresos' || activePage === 'Egresos') && (
+          <section className="filter-row">
+            <span className="filter-title">Filtrar por fecha</span>
+            <label>Desde<input type="date" value={filterStartDate} onChange={(event) => setFilterStartDate(event.target.value)} /></label>
+            <label>Hasta<input type="date" value={filterEndDate} onChange={(event) => setFilterEndDate(event.target.value)} /></label>
+            <div className="filter-summary">
+              <span>Ingresos: <b>{rangePayments.length}</b> recibos · <b>{money(rangeIncomeTotal)}</b></span>
+              <span>Egresos: <b>{rangeExpenses.length}</b> pagos · <b>{money(rangeExpenseTotal)}</b></span>
             </div>
-            {stat.price > 0 && <div className="event-progress-stats">
-              <span className="progress-pill complete">Pagaron el total: <b>{stat.completo}</b></span>
-              <span className="progress-pill half">Más de la mitad: <b>{stat.mitad}</b></span>
-              <span className="progress-pill low">Menos de la mitad: <b>{stat.menosMitad}</b></span>
-            </div>}
-            {stat.price === 0 && stat.payers.length > 0 && <p className="empty-hint">Define un precio para ver cuántos ya cancelaron el total.</p>}
-          </div>)}
-        </div>
-        <div className="panel-head"><div><h3>Buscar cliente en eventos</h3><p>Encuentra a alguien por nombre, carnet o teléfono y revisa cuánto pagó y cuánto debe</p></div></div>
-        <div className="filters"><div className="search"><span>⌕</span><input value={eventPeopleQuery} onChange={(event) => setEventPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
-        {eventPeopleQuery.trim() && <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>EVENTO</th><th>PAGADO</th><th>PRECIO</th><th>DEBE</th><th>ESTADO</th></tr></thead><tbody>
-          {eventStats.flatMap((stat) => stat.payers
-            .filter((entry) => `${entry.person} ${entry.carnet} ${entry.phone}`.toLowerCase().includes(eventPeopleQuery.toLowerCase()))
-            .map((entry) => {
-              const standing = standingOf(entry.paid, stat.price)
-              const remaining = Math.max(stat.price - entry.paid, 0)
-              return <tr key={`${stat.name}-${entry.person}`}>
-                <td className="person-cell"><span className="tiny-avatar">{entry.person[0]}</span>{entry.person}</td>
-                <td>{entry.carnet || '—'}</td>
-                <td>{entry.phone || '—'}</td>
-                <td>{stat.name}</td>
-                <td>{money(entry.paid)}</td>
-                <td>{stat.price ? money(stat.price) : 'Sin definir'}</td>
-                <td>{stat.price ? money(remaining) : '—'}</td>
-                <td><span className={`status ${standing === 'menos-mitad' ? 'void' : ''}`}>{standing === 'completo' ? 'Completo' : standing === 'mitad' ? 'Más de la mitad' : standing === 'menos-mitad' ? 'Menos de la mitad' : 'Sin precio'}</span></td>
-              </tr>
-            }))}
-        </tbody></table></div>}
-      </section>}
+            {hasDateFilter
+              ? <button className="filter-clear" onClick={() => { setFilterStartDate(''); setFilterEndDate('') }}>Limpiar fechas</button>
+              : <span className="filter-hint">Sin fechas elegidas: se muestran todos los movimientos.</span>}
+          </section>
+        )}
 
+        {activePage === 'Resumen' && (
+          <>
+            <section className="hero-row">
+              <div><h2>Bienvenido(@), {loggedUser} <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div>
+              <div className="hero-actions">
+                <button className="outline-button" onClick={() => setShowExpenseModal(true)}><span>−</span> Nuevo egreso</button>
+                <button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button>
+              </div>
+            </section>
+            <section className="stats-grid">
+              <div className="stat-card accent-card"><div className="stat-head"><span>INGRESOS DEL MES</span><i>↗</i></div><strong>{money(incomeThisMonth)}</strong><small><b className="dark">{incomeThisMonthList.length} recibos</b> este mes</small></div>
+              <div className="stat-card"><div className="stat-head"><span>EGRESOS DEL MES</span><i className="rose-icon">↘</i></div><strong>{money(expenseThisMonth)}</strong><small><b className="dark">{expenseThisMonthList.length} egresos</b> este mes</small></div>
+              <div className="stat-card"><div className="stat-head"><span>SALDO ACTUAL</span><i className="green-icon">◈</i></div><strong>{money(balance)}</strong><small><b className={balance >= 0 ? 'dark' : 'rose-text'}>{balance >= 0 ? 'Saldo positivo' : 'Saldo negativo'}</b></small></div>
+            </section>
+            <section className="content-grid">
+              <div className="panel transactions">
+                <div className="panel-head"><div><h3>Últimos movimientos</h3><p>Ingresos y egresos más recientes</p></div><button className="text-button" onClick={() => setActivePage('Ingresos')}>Ver todos <span>→</span></button></div>
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>CÓDIGO</th><th>TIPO</th><th>DETALLE</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th></tr></thead>
+                    <tbody>
+                      {movements.slice(0, 6).map((m) => (
+                        <tr key={`${m.type}-${m.id}`}>
+                          <td>{m.code}</td>
+                          <td><span className={m.type === 'Ingreso' ? 'status' : 'status void'}>{m.type}</span></td>
+                          <td className="person-cell"><span className="tiny-avatar">{m.label[0]}</span><span>{m.label}<span className="method">{m.concept}</span></span></td>
+                          <td>{formatDate(m.date)}</td>
+                          <td>{money(m.amount)}</td>
+                          <td><span className={m.status === 'Aplicado' ? 'status' : 'status void'}>{m.status}</span></td>
+                        </tr>
+                      ))}
+                      {movements.length === 0 && <tr><td className="empty-cell" colSpan={6}>No hay movimientos en las fechas elegidas.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="panel events">
+                <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Sugerencias usadas al emitir recibos</p></div><button className="text-button" onClick={() => setActivePage('Eventos')}>Gestionar <span>→</span></button></div>
+                {eventStats.length === 0 && <p className="empty-hint">Aún no hay eventos registrados.</p>}
+                {eventStats.map((stat) => (
+                  <div className="event-item" key={stat.name}>
+                    <div className="event-date"><b>{stat.count}</b><span>recibos</span></div>
+                    <div><strong>{stat.name}</strong><small>{money(stat.total)} recaudados</small></div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
 
-      {activePage === 'Clientes' && <section className="panel">
-        <div className="panel-head"><div><h3>Directorio de clientes</h3><p>Clientes registrados, cuánto han pagado y cuánto deben por evento. Puedes editar su ficha o quitarlos del directorio.</p></div></div>
-        <div className="inline-form">
-          <label>Nombre<input value={personForm.name} onChange={(event) => setPersonForm({ ...personForm, name: event.target.value })} placeholder="Nombre completo" /></label>
-          <label>N.º de carnet<input value={personForm.carnet} onChange={(event) => setPersonForm({ ...personForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
-          <label>Teléfono<input value={personForm.phone} onChange={(event) => setPersonForm({ ...personForm, phone: event.target.value })} placeholder="Opcional" /></label>
-          <label>Notas<input value={personForm.notes} onChange={(event) => setPersonForm({ ...personForm, notes: event.target.value })} placeholder="Opcional" /></label>
-          <button className="primary-button" onClick={addPerson}>Agregar cliente</button>
-        </div>
-        <div className="filters"><div className="search"><span>⌕</span><input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
-        <div className="table-wrap"><table><thead><tr><th>NOMBRE</th><th>CARNET</th><th>TELÉFONO</th><th>TOTAL PAGADO</th><th>TOTAL ADEUDADO</th><th>DETALLE POR EVENTO</th><th>ACCIONES</th></tr></thead><tbody>
-          {filteredPeople.map((person) => <tr key={person.id}>
-            <td className="person-cell"><span className="tiny-avatar">{person.name[0]}</span><span>{person.name}{person.notes && <span className="method">{person.notes}</span>}</span></td>
-            <td>{person.carnet || '—'}</td>
-            <td>{person.phone || '—'}</td>
-            <td>{money(person.total)}<span className="method">{person.count} recibos</span></td>
-            <td>{person.totalDue > 0 ? <b className="rose-text">{money(person.totalDue)}</b> : <span className="status">Al día</span>}</td>
-            <td>{person.events.length === 0 ? '—' : <div className="event-mini-list">{person.events.map((ev) => <span key={ev.event} className={`status ${ev.standing === 'menos-mitad' ? 'void' : ''}`}>{ev.event}: {ev.price ? `${money(ev.paid)} / ${money(ev.price)}` : money(ev.paid)}</span>)}</div>}</td>
-            <td><div className="row-actions">
-              <button className="status-toggle" onClick={() => startEditPerson(person)}>Editar</button>
-              <button className="status-toggle danger" onClick={() => askRemovePerson(person)}>Eliminar</button>
-            </div></td>
-          </tr>)}
-          {filteredPeople.length === 0 && <tr><td className="empty-cell" colSpan={7}>{people.length === 0 ? 'Aún no hay clientes en el directorio. Agrega el primero con el formulario de arriba o desde las sugerencias de abajo.' : 'Ningún cliente coincide con la búsqueda.'}</td></tr>}
-        </tbody></table></div>
-        <div className="table-note">Eliminar un cliente solo lo quita del directorio: sus recibos siguen guardados en Ingresos y, si vuelve a pagar, puedes registrarlo otra vez desde las sugerencias de abajo.</div>
-        {undirectoried.length > 0 && <div className="chip-list">
-          {undirectoried.map((entry) => <div className="chip" key={entry.name}><div><strong>{entry.name}</strong><small>{[entry.carnet && `Carnet ${entry.carnet}`, entry.phone && `Tel. ${entry.phone}`].filter(Boolean).join(' · ')}{(entry.carnet || entry.phone) ? ' · ' : ''}Ya tiene recibos, aún no está en el directorio</small></div><button onClick={() => registerPayer(entry.name, entry.carnet, entry.phone)} aria-label={`Agregar ${entry.name}`}>＋</button></div>)}
-        </div>}
-      </section>}
+        {activePage === 'Ingresos' && (
+          <section className="panel transactions">
+            <div className="panel-head"><div><h3>Ingresos</h3><p>Todos los recibos emitidos</p></div><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div>
+            <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, carnet, teléfono, concepto o recibo..." /></div></div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>RECIBO</th><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead>
+                <tbody>
+                  {filteredPayments.map((payment) => (
+                    <tr key={payment.id}>
+                      <td><button className="receipt-link" onClick={() => { setSelectedReceipt(payment); setShowReceipt(true) }}>{payment.receipt}</button></td>
+                      <td className="person-cell"><span className="tiny-avatar">{payment.person[0]}</span>{payment.person}</td>
+                      <td>{payment.carnet || '—'}</td>
+                      <td>{payment.phone || '—'}</td>
+                      <td>{payment.concept}</td>
+                      <td>{formatDate(payment.date)}</td>
+                      <td>{money(payment.amount)}<span className="method">Efectivo {money(payment.cash)} · QR {money(payment.qr)}</span></td>
+                      <td>{payment.issuedBy || '—'}</td>
+                      <td><span className={payment.status === 'Aplicado' ? 'status' : 'status void'}>{payment.status}</span></td>
+                      <td>{canManage(payment.issuedBy) ? <button className="status-toggle" onClick={() => toggleIncomeStatus(payment.id)}>{payment.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {payment.issuedBy}</span>}</td>
+                    </tr>
+                  ))}
+                  {filteredPayments.length === 0 && <tr><td className="empty-cell" colSpan={10}>No hay recibos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
+        {activePage === 'Egresos' && (
+          <section className="panel transactions">
+            <div className="panel-head"><div><h3>Egresos</h3><p>Todos los pagos y gastos registrados</p></div><button className="primary-button" onClick={() => setShowExpenseModal(true)}><span>＋</span> Nuevo egreso</button></div>
+            <div className="filters"><div className="search"><span>⌕</span><input value={expenseQuery} onChange={(event) => setExpenseQuery(event.target.value)} placeholder="Buscar por destinatario, categoría o comprobante..." /></div></div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>COMPROBANTE</th><th>DESTINATARIO</th><th>CONCEPTO</th><th>CATEGORÍA</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead>
+                <tbody>
+                  {filteredExpenses.map((expense) => (
+                    <tr key={expense.id}>
+                      <td><button className="receipt-link" onClick={() => { setSelectedVoucher(expense); setShowVoucher(true) }}>{expense.voucher}</button></td>
+                      <td className="person-cell"><span className="tiny-avatar">{expense.recipient[0]}</span>{expense.recipient}</td>
+                      <td>{expense.concept}</td>
+                      <td>{expense.category}</td>
+                      <td>{formatDate(expense.date)}</td>
+                      <td>{money(expense.amount)}<span className="method">Efectivo {money(expense.cash)} · QR {money(expense.qr)}</span></td>
+                      <td>{expense.issuedBy || '—'}</td>
+                      <td><span className={expense.status === 'Aplicado' ? 'status' : 'status void'}>{expense.status}</span></td>
+                      <td>{canManage(expense.issuedBy) ? <button className="status-toggle" onClick={() => toggleExpenseStatus(expense.id)}>{expense.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {expense.issuedBy}</span>}</td>
+                    </tr>
+                  ))}
+                  {filteredExpenses.length === 0 && <tr><td className="empty-cell" colSpan={9}>No hay egresos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
-      {activePage === 'Reportes' && <>
-        <section className="stats-grid">
-          <div className="stat-card accent-card"><div className="stat-head"><span>TOTAL INGRESOS</span><i>↗</i></div><strong>{money(totalIncome)}</strong><small>Efectivo {money(activeIncome.reduce((s, p) => s + p.cash, 0))} · QR {money(activeIncome.reduce((s, p) => s + p.qr, 0))}</small></div>
-          <div className="stat-card"><div className="stat-head"><span>TOTAL EGRESOS</span><i className="rose-icon">↘</i></div><strong>{money(totalExpense)}</strong><small>Efectivo {money(activeExpenses.reduce((s, e) => s + e.cash, 0))} · QR {money(activeExpenses.reduce((s, e) => s + e.qr, 0))}</small></div>
-          <div className="stat-card"><div className="stat-head"><span>SALDO GENERAL</span><i className="green-icon">◈</i></div><strong>{money(balance)}</strong><small>Desde el inicio del registro</small></div>
-        </section>
-        <section className="panel">
-          <div className="panel-head"><div><h3>Mi firma en los comprobantes</h3><p>Este nombre y apellido aparece como ADMINISTRADOR en la firma de los recibos y comprobantes que emites</p></div></div>
-          <div className="inline-form">
-            <label>Nombre y apellido de {loggedUser}<input value={fullNameDraft} onChange={(event) => setFullNameDraft(event.target.value)} placeholder="Ej. Melitza Quispe" /></label>
-            <button className="primary-button" onClick={saveFullName}>Guardar nombre</button>
+        {activePage === 'Eventos' && (
+          <section className="panel">
+            <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Estas sugerencias aparecen al registrar un ingreso; el campo de concepto siempre acepta texto libre.{loggedUser !== eventManager && ' Solo Ovet Zúñiga puede crear, editar el precio o quitar eventos.'}</p></div></div>
+            {loggedUser === eventManager && (
+              <div className="inline-form">
+                <label>Nuevo evento o concepto<input value={newEventName} onChange={(event) => setNewEventName(event.target.value)} placeholder="Ej. Retiro de varones 2025" /></label>
+                <button className="primary-button" onClick={addEventOption}>Agregar</button>
+              </div>
+            )}
+            <div className="event-detail-list">
+              {eventStats.map((stat) => (
+                <div className="event-detail-card" key={stat.name}>
+                  <div className="event-detail-head">
+                    <div><strong>{stat.name}</strong><small>{stat.count} recibos · {money(stat.total)} recaudados</small></div>
+                    {loggedUser === eventManager ? (
+                      <>
+                        <label className="price-field">Precio del evento (Bs)<input type="number" value={stat.price || ''} onChange={(event) => setEventPrice(stat.name, event.target.value)} placeholder="0.00" /></label>
+                        <button onClick={() => removeEventOption(stat.name)} aria-label={`Quitar ${stat.name}`}>×</button>
+                      </>
+                    ) : (
+                      <span className="price-field">Precio del evento<strong>{stat.price ? money(stat.price) : 'Sin definir'}</strong></span>
+                    )}
+                  </div>
+                  {stat.price > 0 && (
+                    <div className="event-progress-stats">
+                      <span className="progress-pill complete">Pagaron el total: <b>{stat.completo}</b></span>
+                      <span className="progress-pill half">Más de la mitad: <b>{stat.mitad}</b></span>
+                      <span className="progress-pill low">Menos de la mitad: <b>{stat.menosMitad}</b></span>
+                    </div>
+                  )}
+                  {stat.price === 0 && stat.payers.length > 0 && <p className="empty-hint">Define un precio para ver cuántos ya cancelaron el total.</p>}
+                </div>
+              ))}
+            </div>
+            <div className="panel-head"><div><h3>Buscar cliente en eventos</h3><p>Encuentra a alguien por nombre, carnet o teléfono y revisa cuánto pagó y cuánto debe</p></div></div>
+            <div className="filters"><div className="search"><span>⌕</span><input value={eventPeopleQuery} onChange={(event) => setEventPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
+            {eventPeopleQuery.trim() && (
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>EVENTO</th><th>PAGADO</th><th>PRECIO</th><th>DEBE</th><th>ESTADO</th></tr></thead>
+                  <tbody>
+                    {eventStats.flatMap((stat) => stat.payers
+                      .filter((entry) => `${entry.person} ${entry.carnet} ${entry.phone}`.toLowerCase().includes(eventPeopleQuery.toLowerCase()))
+                      .map((entry) => {
+                        const standing = standingOf(entry.paid, stat.price)
+                        const remaining = Math.max(stat.price - entry.paid, 0)
+                        return (
+                          <tr key={`${stat.name}-${entry.person}`}>
+                            <td className="person-cell"><span className="tiny-avatar">{entry.person[0]}</span>{entry.person}</td>
+                            <td>{entry.carnet || '—'}</td>
+                            <td>{entry.phone || '—'}</td>
+                            <td>{stat.name}</td>
+                            <td>{money(entry.paid)}</td>
+                            <td>{stat.price ? money(stat.price) : 'Sin definir'}</td>
+                            <td>{stat.price ? money(remaining) : '—'}</td>
+                            <td><span className={`status ${standing === 'menos-mitad' ? 'void' : ''}`}>{standing === 'completo' ? 'Completo' : standing === 'mitad' ? 'Más de la mitad' : standing === 'menos-mitad' ? 'Menos de la mitad' : 'Sin precio'}</span></td>
+                          </tr>
+                        )
+                      }))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activePage === 'Clientes' && (
+          <section className="panel">
+            <div className="panel-head"><div><h3>Directorio de clientes</h3><p>Clientes registrados, cuánto han pagado y cuánto deben por evento. Puedes editar su ficha o quitarlos del directorio.</p></div></div>
+            <div className="inline-form">
+              <label>Nombre<input value={personForm.name} onChange={(event) => setPersonForm({ ...personForm, name: event.target.value })} placeholder="Nombre completo" /></label>
+              <label>N.º de carnet<input value={personForm.carnet} onChange={(event) => setPersonForm({ ...personForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
+              <label>Teléfono<input value={personForm.phone} onChange={(event) => setPersonForm({ ...personForm, phone: event.target.value })} placeholder="Opcional" /></label>
+              <label>Notas<input value={personForm.notes} onChange={(event) => setPersonForm({ ...personForm, notes: event.target.value })} placeholder="Opcional" /></label>
+              <button className="primary-button" onClick={addPerson}>Agregar cliente</button>
+            </div>
+            <div className="filters"><div className="search"><span>⌕</span><input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>NOMBRE</th><th>CARNET</th><th>TELÉFONO</th><th>TOTAL PAGADO</th><th>TOTAL ADEUDADO</th><th>DETALLE POR EVENTO</th><th>ACCIONES</th></tr></thead>
+                <tbody>
+                  {filteredPeople.map((person) => (
+                    <tr key={person.id}>
+                      <td className="person-cell"><span className="tiny-avatar">{person.name[0]}</span><span>{person.name}{person.notes && <span className="method">{person.notes}</span>}</span></td>
+                      <td>{person.carnet || '—'}</td>
+                      <td>{person.phone || '—'}</td>
+                      <td>{money(person.total)}<span className="method">{person.count} recibos</span></td>
+                      <td>{person.totalDue > 0 ? <b className="rose-text">{money(person.totalDue)}</b> : <span className="status">Al día</span>}</td>
+                      <td>{person.events.length === 0 ? '—' : <div className="event-mini-list">{person.events.map((ev) => <span key={ev.event} className={`status ${ev.standing === 'menos-mitad' ? 'void' : ''}`}>{ev.event}: {ev.price ? `${money(ev.paid)} / ${money(ev.price)}` : money(ev.paid)}</span>)}</div>}</td>
+                      <td><div className="row-actions">
+                        <button className="status-toggle" onClick={() => startEditPerson(person)}>Editar</button>
+                        <button className="status-toggle danger" onClick={() => askRemovePerson(person)}>Eliminar</button>
+                      </div></td>
+                    </tr>
+                  ))}
+                  {filteredPeople.length === 0 && <tr><td className="empty-cell" colSpan={7}>{people.length === 0 ? 'Aún no hay clientes en el directorio. Agrega el primero con el formulario de arriba o desde las sugerencias de abajo.' : 'Ningún cliente coincide con la búsqueda.'}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <div className="table-note">Eliminar un cliente solo lo quita del directorio: sus recibos siguen guardados en Ingresos y, si vuelve a pagar, puedes registrarlo otra vez desde las sugerencias de abajo.</div>
+            {undirectoried.length > 0 && (
+              <div className="chip-list">
+                {undirectoried.map((entry) => (
+                  <div className="chip" key={entry.name}>
+                    <div><strong>{entry.name}</strong><small>{[entry.carnet && `Carnet ${entry.carnet}`, entry.phone && `Tel. ${entry.phone}`].filter(Boolean).join(' · ')}{(entry.carnet || entry.phone) ? ' · ' : ''}Ya tiene recibos, aún no está en el directorio</small></div>
+                    <button onClick={() => registerPayer(entry.name, entry.carnet, entry.phone)} aria-label={`Agregar ${entry.name}`}>＋</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {activePage === 'Reportes' && (
+          <>
+            <section className="stats-grid">
+              <div className="stat-card accent-card"><div className="stat-head"><span>TOTAL INGRESOS</span><i>↗</i></div><strong>{money(totalIncome)}</strong><small>Efectivo {money(activeIncome.reduce((s, p) => s + p.cash, 0))} · QR {money(activeIncome.reduce((s, p) => s + p.qr, 0))}</small></div>
+              <div className="stat-card"><div className="stat-head"><span>TOTAL EGRESOS</span><i className="rose-icon">↘</i></div><strong>{money(totalExpense)}</strong><small>Efectivo {money(activeExpenses.reduce((s, e) => s + e.cash, 0))} · QR {money(activeExpenses.reduce((s, e) => s + e.qr, 0))}</small></div>
+              <div className="stat-card"><div className="stat-head"><span>SALDO GENERAL</span><i className="green-icon">◈</i></div><strong>{money(balance)}</strong><small>Desde el inicio del registro</small></div>
+            </section>
+            <section className="panel">
+              <div className="panel-head"><div><h3>Mi firma en los comprobantes</h3><p>Este nombre y apellido aparece como ADMINISTRADOR en la firma de los recibos y comprobantes que emites</p></div></div>
+              <div className="inline-form">
+                <label>Nombre y apellido de {loggedUser}<input value={fullNameDraft} onChange={(event) => setFullNameDraft(event.target.value)} placeholder="Ej. Melitza Quispe" /></label>
+                <button className="primary-button" onClick={saveFullName}>Guardar nombre</button>
+              </div>
+            </section>
+            <section className="panel">
+              <div className="panel-head"><div><h3>Respaldo y mantenimiento</h3><p>Descarga el historial antes de vaciarlo, para no perder datos antiguos</p></div></div>
+              <div className="payment-note">Recomendamos descargar este archivo periódicamente y guardarlo en tu Google Drive (u otro almacenamiento). Así, si en el futuro necesitas liberar espacio, puedes vaciar el historial sin perder los registros antiguos.</div>
+              <div className="inline-form"><button className="outline-button" onClick={exportBackup}>Descargar historial (CSV) <span>↓</span></button></div>
+              <div className="inline-form">
+                <label>Escribe BORRAR para confirmar<input value={confirmClear} onChange={(event) => setConfirmClear(event.target.value)} placeholder="BORRAR" /></label>
+                <button className="danger-button" disabled={confirmClear.trim().toUpperCase() !== 'BORRAR'} onClick={clearHistory}>Vaciar historial de ingresos y egresos</button>
+              </div>
+            </section>
+          </>
+        )}
+
+        <footer className="verse-strip"><span className="verse-mark">✦</span><p>"Se requiere que el administrador, sea hallado fiel" — <b>1 Corintios 4:2</b></p></footer>
+      </main>
+
+      {/* ==================== MODALES ==================== */}
+
+      {showIncomeModal && (
+        <div className="modal-backdrop" onClick={() => setShowIncomeModal(false)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div><button className="close-button" onClick={() => setShowIncomeModal(false)}>×</button></div>
+            <label>Nombre de la persona<input list="client-name-suggestions" value={incomeForm.person} onChange={(event) => fillIncomeField('person', event.target.value)} placeholder="Ej. Ana Lopez" /><datalist id="client-name-suggestions">{suggestionsFor(incomeForm.person, people.map((person) => person.name)).map((name) => <option value={name} key={name} />)}</datalist></label>
+            <label>N.º de carnet<input list="client-carnet-suggestions" value={incomeForm.carnet} onChange={(event) => fillIncomeField('carnet', event.target.value)} placeholder="Ej. 7845123" /><datalist id="client-carnet-suggestions">{suggestionsFor(incomeForm.carnet, people.filter((person) => person.carnet).map((person) => person.carnet)).map((carnet) => <option value={carnet} key={carnet} />)}</datalist></label>
+            <label>Teléfono<input list="client-phone-suggestions" value={incomeForm.phone} onChange={(event) => fillIncomeField('phone', event.target.value)} placeholder="Ej. 71234567" /><datalist id="client-phone-suggestions">{suggestionsFor(incomeForm.phone, people.filter((person) => person.phone).map((person) => person.phone)).map((phone) => <option value={phone} key={phone} />)}</datalist></label>
+            {incomeLookup && (
+              <div className="lookup-card">
+                <div className="lookup-head"><strong>{incomeLookup.name}</strong>{incomeLookup.carnet && <span>Carnet {incomeLookup.carnet}</span>}{incomeLookup.phone && <span>Tel. {incomeLookup.phone}</span>}</div>
+                <div className="lookup-stats">
+                  <span>Pagado: <b>{money(incomeLookup.total)}</b></span>
+                  <span>Veces que pagó: <b>{incomeLookup.count}</b></span>
+                  <span>Debe: <b className={incomeLookup.totalDue > 0 ? 'rose-text' : ''}>{incomeLookup.totalDue > 0 ? money(incomeLookup.totalDue) : 'Al día'}</b></span>
+                </div>
+                {incomeLookup.events.length > 0 && <div className="event-mini-list">{incomeLookup.events.map((ev) => <span key={ev.event} className={`status ${ev.standing === 'menos-mitad' ? 'void' : ''}`}>{ev.event}: {ev.price ? `${money(ev.paid)} / ${money(ev.price)}` : money(ev.paid)}</span>)}</div>}
+                {incomeLookup.receipts.length > 0 && (
+                  <div className="lookup-receipts">
+                    <small>Comprobantes registrados:</small>
+                    {incomeLookup.receipts.map((r) => <button key={r.id} className="receipt-link" onClick={() => { setSelectedReceipt(r); setShowReceipt(true) }}>{r.receipt} · {money(r.amount)}</button>)}
+                  </div>
+                )}
+              </div>
+            )}
+            <label>Evento o concepto<input list="event-suggestions" value={incomeForm.concept} onChange={(event) => setIncomeForm({ ...incomeForm, concept: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="event-suggestions">{suggestionsFor(incomeForm.concept, eventOptions).map((option) => <option value={option} key={option} />)}</datalist></label>
+            <div className="form-row"><label>Efectivo (Bs)<input type="number" value={incomeForm.cash} onChange={(event) => setIncomeForm({ ...incomeForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={incomeForm.qr} onChange={(event) => setIncomeForm({ ...incomeForm, qr: event.target.value })} placeholder="0.00" /></label></div>
+            <div className="payment-note">Puedes combinar efectivo y QR en un mismo recibo. El concepto es libre; las sugerencias solo ayudan a escribir más rápido.</div>
+            <button className="primary-button full" onClick={saveIncome}>Guardar y emitir recibo <span>→</span></button>
           </div>
-        </section>
-        <section className="panel">
-          <div className="panel-head"><div><h3>Respaldo y mantenimiento</h3><p>Descarga el historial antes de vaciarlo, para no perder datos antiguos</p></div></div>
-          <div className="payment-note">Recomendamos descargar este archivo periódicamente y guardarlo en tu Google Drive (u otro almacenamiento). Así, si en el futuro necesitas liberar espacio, puedes vaciar el historial sin perder los registros antiguos.</div>
-          <div className="inline-form"><button className="outline-button" onClick={exportBackup}>Descargar historial (CSV) <span>↓</span></button></div>
-          <div className="inline-form">
-            <label>Escribe BORRAR para confirmar<input value={confirmClear} onChange={(event) => setConfirmClear(event.target.value)} placeholder="BORRAR" /></label>
-            <button className="danger-button" disabled={confirmClear.trim().toUpperCase() !== 'BORRAR'} onClick={clearHistory}>Vaciar historial de ingresos y egresos</button>
+        </div>
+      )}
+
+      {showExpenseModal && (
+        <div className="modal-backdrop" onClick={() => setShowExpenseModal(false)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Registrar egreso</h2></div><button className="close-button" onClick={() => setShowExpenseModal(false)}>×</button></div>
+            <label>Pagado a<input value={expenseForm.recipient} onChange={(event) => setExpenseForm({ ...expenseForm, recipient: event.target.value })} placeholder="Ej. Ferretería Central" /></label>
+            <label>Concepto<input value={expenseForm.concept} onChange={(event) => setExpenseForm({ ...expenseForm, concept: event.target.value })} placeholder="Ej. Materiales para campamento" /></label>
+            <label>Categoría<input list="category-suggestions" value={expenseForm.category} onChange={(event) => setExpenseForm({ ...expenseForm, category: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="category-suggestions">{suggestionsFor(expenseForm.category, categoryOptions).map((option) => <option value={option} key={option} />)}</datalist></label>
+            <div className="form-row"><label>Efectivo (Bs)<input type="number" value={expenseForm.cash} onChange={(event) => setExpenseForm({ ...expenseForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={expenseForm.qr} onChange={(event) => setExpenseForm({ ...expenseForm, qr: event.target.value })} placeholder="0.00" /></label></div>
+            <div className="payment-note">Puedes combinar efectivo y QR en un mismo egreso. La categoría es libre; las sugerencias solo ayudan a escribir más rápido.</div>
+            <button className="primary-button full" onClick={saveExpense}>Guardar y emitir comprobante <span>→</span></button>
           </div>
-        </section>
-      </>}
-      {/* Versículo que acompaña a las dos cuentas administradoras en todas las páginas */}
-      <footer className="verse-strip"><span className="verse-mark">✦</span><p>"Se requiere que el administrador, sea hallado fiel" — <b>1 Corintios 4:2</b></p></footer>
-    </main>
-
-    {showIncomeModal && <div className="modal-backdrop" onClick={() => setShowIncomeModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
-      <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Emitir recibo</h2></div><button className="close-button" onClick={() => setShowIncomeModal(false)}>×</button></div>
-      <label>Nombre de la persona<input list="client-name-suggestions" value={incomeForm.person} onChange={(event) => fillIncomeField('person', event.target.value)} placeholder="Ej. Ana Lopez" /><datalist id="client-name-suggestions">{suggestionsFor(incomeForm.person, people.map((person) => person.name)).map((name) => <option value={name} key={name} />)}</datalist></label>
-      <label>N.º de carnet<input list="client-carnet-suggestions" value={incomeForm.carnet} onChange={(event) => fillIncomeField('carnet', event.target.value)} placeholder="Ej. 7845123" /><datalist id="client-carnet-suggestions">{suggestionsFor(incomeForm.carnet, people.filter((person) => person.carnet).map((person) => person.carnet)).map((carnet) => <option value={carnet} key={carnet} />)}</datalist></label>
-      <label>Teléfono<input list="client-phone-suggestions" value={incomeForm.phone} onChange={(event) => fillIncomeField('phone', event.target.value)} placeholder="Ej. 71234567" /><datalist id="client-phone-suggestions">{suggestionsFor(incomeForm.phone, people.filter((person) => person.phone).map((person) => person.phone)).map((phone) => <option value={phone} key={phone} />)}</datalist></label>
-      {incomeLookup && <div className="lookup-card">
-        <div className="lookup-head"><strong>{incomeLookup.name}</strong>{incomeLookup.carnet && <span>Carnet {incomeLookup.carnet}</span>}{incomeLookup.phone && <span>Tel. {incomeLookup.phone}</span>}</div>
-        <div className="lookup-stats">
-          <span>Pagado: <b>{money(incomeLookup.total)}</b></span>
-          <span>Veces que pagó: <b>{incomeLookup.count}</b></span>
-          <span>Debe: <b className={incomeLookup.totalDue > 0 ? 'rose-text' : ''}>{incomeLookup.totalDue > 0 ? money(incomeLookup.totalDue) : 'Al día'}</b></span>
         </div>
-        {incomeLookup.events.length > 0 && <div className="event-mini-list">{incomeLookup.events.map((ev) => <span key={ev.event} className={`status ${ev.standing === 'menos-mitad' ? 'void' : ''}`}>{ev.event}: {ev.price ? `${money(ev.paid)} / ${money(ev.price)}` : money(ev.paid)}</span>)}</div>}
-        {incomeLookup.receipts.length > 0 && <div className="lookup-receipts">
-          <small>Comprobantes registrados:</small>
-          {incomeLookup.receipts.map((r) => <button key={r.id} className="receipt-link" onClick={() => { setSelectedReceipt(r); setShowReceipt(true) }}>{r.receipt} · {money(r.amount)}</button>)}
-        </div>}
-      </div>}
-      <label>Evento o concepto<input list="event-suggestions" value={incomeForm.concept} onChange={(event) => setIncomeForm({ ...incomeForm, concept: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="event-suggestions">{suggestionsFor(incomeForm.concept, eventOptions).map((option) => <option value={option} key={option} />)}</datalist></label>
-      <div className="form-row"><label>Efectivo (Bs)<input type="number" value={incomeForm.cash} onChange={(event) => setIncomeForm({ ...incomeForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={incomeForm.qr} onChange={(event) => setIncomeForm({ ...incomeForm, qr: event.target.value })} placeholder="0.00" /></label></div>
-      <div className="payment-note">Puedes combinar efectivo y QR en un mismo recibo. El concepto es libre; las sugerencias solo ayudan a escribir más rápido.</div>
-      <button className="primary-button full" onClick={saveIncome}>Guardar y emitir recibo <span>→</span></button>
-    </div></div>}
+      )}
 
-
-    {showExpenseModal && <div className="modal-backdrop" onClick={() => setShowExpenseModal(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
-      <div className="modal-title"><div><span className="eyebrow">NUEVO MOVIMIENTO</span><h2>Registrar egreso</h2></div><button className="close-button" onClick={() => setShowExpenseModal(false)}>×</button></div>
-      <label>Pagado a<input value={expenseForm.recipient} onChange={(event) => setExpenseForm({ ...expenseForm, recipient: event.target.value })} placeholder="Ej. Ferretería Central" /></label>
-      <label>Concepto<input value={expenseForm.concept} onChange={(event) => setExpenseForm({ ...expenseForm, concept: event.target.value })} placeholder="Ej. Materiales para campamento" /></label>
-      <label>Categoría<input list="category-suggestions" value={expenseForm.category} onChange={(event) => setExpenseForm({ ...expenseForm, category: event.target.value })} placeholder="Escribe libremente o elige una sugerencia" /><datalist id="category-suggestions">{suggestionsFor(expenseForm.category, categoryOptions).map((option) => <option value={option} key={option} />)}</datalist></label>
-      <div className="form-row"><label>Efectivo (Bs)<input type="number" value={expenseForm.cash} onChange={(event) => setExpenseForm({ ...expenseForm, cash: event.target.value })} placeholder="0.00" /></label><label>QR (Bs)<input type="number" value={expenseForm.qr} onChange={(event) => setExpenseForm({ ...expenseForm, qr: event.target.value })} placeholder="0.00" /></label></div>
-      <div className="payment-note">Puedes combinar efectivo y QR en un mismo egreso. La categoría es libre; las sugerencias solo ayudan a escribir más rápido.</div>
-      <button className="primary-button full" onClick={saveExpense}>Guardar y emitir comprobante <span>→</span></button>
-    </div></div>}
-
-      {/* Ficha del cliente para corregir nombre, carnet, teléfono o notas */}
-    {editingPersonId && <div className="modal-backdrop" onClick={closeEditPerson}><div className="modal" onClick={(event) => event.stopPropagation()}>
-      <div className="modal-title"><div><span className="eyebrow">EDITAR CLIENTE</span><h2>Ficha del cliente</h2></div><button className="close-button" onClick={closeEditPerson}>×</button></div>
-      <label>Nombre<input value={personEditForm.name} onChange={(event) => setPersonEditForm({ ...personEditForm, name: event.target.value })} placeholder="Nombre completo" /></label>
-      <label>N.º de carnet<input value={personEditForm.carnet} onChange={(event) => setPersonEditForm({ ...personEditForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
-      <label>Teléfono<input value={personEditForm.phone} onChange={(event) => setPersonEditForm({ ...personEditForm, phone: event.target.value })} placeholder="Opcional" /></label>
-      <label>Notas<input value={personEditForm.notes} onChange={(event) => setPersonEditForm({ ...personEditForm, notes: event.target.value })} placeholder="Opcional" /></label>
-      {personMessage && <div className="form-message">{personMessage}</div>}
-      <div className="payment-note">Si corriges el nombre, los recibos ya emitidos a este cliente se actualizan para que su historial y sus totales se mantengan. Si el nuevo nombre ya tiene recibos propios, se unirán en un solo historial. También se completan el carnet y el teléfono en los recibos que estaban sin esos datos.</div>
-      <button className="primary-button full" onClick={savePersonEdit}>Guardar cambios <span>→</span></button>
-    </div></div>}
-
-    {/* Confirmación antes de quitar un cliente del directorio */}
-    {pendingDelete && <div className="modal-backdrop" onClick={() => setPendingDelete(null)}><div className="modal" onClick={(event) => event.stopPropagation()}>
-      <div className="modal-title"><div><span className="eyebrow">ELIMINAR CLIENTE</span><h2>¿Quitar a {pendingDelete.name}?</h2></div><button className="close-button" onClick={() => setPendingDelete(null)}>×</button></div>
-      {pendingDeleteRecord && <div className="lookup-card">
-        <div className="lookup-head"><strong>{pendingDeleteRecord.name}</strong>{pendingDeleteRecord.carnet && <span>Carnet {pendingDeleteRecord.carnet}</span>}{pendingDeleteRecord.phone && <span>Tel. {pendingDeleteRecord.phone}</span>}</div>
-        <div className="lookup-stats">
-          <span>Recibos: <b>{pendingDeleteRecord.count}</b></span>
-          <span>Pagado: <b>{money(pendingDeleteRecord.total)}</b></span>
-          <span>Deuda: <b className={pendingDeleteRecord.totalDue > 0 ? 'rose-text' : ''}>{pendingDeleteRecord.totalDue > 0 ? money(pendingDeleteRecord.totalDue) : 'Al día'}</b></span>
+      {editingPersonId && (
+        <div className="modal-backdrop" onClick={closeEditPerson}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-title"><div><span className="eyebrow">EDITAR CLIENTE</span><h2>Ficha del cliente</h2></div><button className="close-button" onClick={closeEditPerson}>×</button></div>
+            <label>Nombre<input value={personEditForm.name} onChange={(event) => setPersonEditForm({ ...personEditForm, name: event.target.value })} placeholder="Nombre completo" /></label>
+            <label>N.º de carnet<input value={personEditForm.carnet} onChange={(event) => setPersonEditForm({ ...personEditForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
+            <label>Teléfono<input value={personEditForm.phone} onChange={(event) => setPersonEditForm({ ...personEditForm, phone: event.target.value })} placeholder="Opcional" /></label>
+            <label>Notas<input value={personEditForm.notes} onChange={(event) => setPersonEditForm({ ...personEditForm, notes: event.target.value })} placeholder="Opcional" /></label>
+            {personMessage && <div className="form-message">{personMessage}</div>}
+            <div className="payment-note">Si corriges el nombre, los recibos ya emitidos a este cliente se actualizan para que su historial y sus totales se mantengan. Si el nuevo nombre ya tiene recibos propios, se unirán en un solo historial. También se completan el carnet y el teléfono en los recibos que estaban sin esos datos.</div>
+            <button className="primary-button full" onClick={savePersonEdit}>Guardar cambios <span>→</span></button>
+          </div>
         </div>
-      </div>}
-      <div className="payment-note">Se quita solo del directorio de clientes: sus recibos quedan guardados en Ingresos, así que el historial y las cuentas no cambian. Si vuelve a pagar, puedes agregarlo otra vez desde las sugerencias de la página Clientes.</div>
-      <div className="modal-actions-row">
-        <button className="outline-button full" onClick={() => setPendingDelete(null)}>Cancelar</button>
-        <button className="danger-button full" onClick={confirmRemovePerson}>Eliminar del directorio</button>
-      </div>
-    </div></div>}
+      )}
 
-    {showReceipt && selectedReceipt && <div className="modal-backdrop" onClick={() => setShowReceipt(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
-      <div className="receipt-actions"><span>Vista previa del comprobante (2 copias)</span><button className="close-button" onClick={() => setShowReceipt(false)}>×</button></div>
-      <div className="receipt-print-sheet">
-        {renderReceiptCopy(selectedReceipt, 'cliente', receiptPaperRef)}
-        <div className="cut-line"><span>✂ Recortar aquí</span></div>
-        {renderReceiptCopy(selectedReceipt, 'administración')}
-      </div>
-      <div className="receipt-actions-row">
-        <button className="outline-button full" onClick={() => window.print()}>Imprimir las 2 copias <span>↗</span></button>
-        <button className="primary-button full" disabled={sharingReceipt} onClick={() => shareAsImage(receiptPaperRef.current, `${selectedReceipt.receipt}.png`, `Recibo ${selectedReceipt.receipt} - ${selectedReceipt.person} - ${money(selectedReceipt.amount)}`)}>{sharingReceipt ? 'Generando imagen…' : 'Enviar por WhatsApp'} <span>↗</span></button>
-      </div>
-    </div></div>}
+      {pendingDelete && (
+        <div className="modal-backdrop" onClick={() => setPendingDelete(null)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-title"><div><span className="eyebrow">ELIMINAR CLIENTE</span><h2>¿Quitar a {pendingDelete.name}?</h2></div><button className="close-button" onClick={() => setPendingDelete(null)}>×</button></div>
+            {pendingDeleteRecord && (
+              <div className="lookup-card">
+                <div className="lookup-head"><strong>{pendingDeleteRecord.name}</strong>{pendingDeleteRecord.carnet && <span>Carnet {pendingDeleteRecord.carnet}</span>}{pendingDeleteRecord.phone && <span>Tel. {pendingDeleteRecord.phone}</span>}</div>
+                <div className="lookup-stats">
+                  <span>Recibos: <b>{pendingDeleteRecord.count}</b></span>
+                  <span>Pagado: <b>{money(pendingDeleteRecord.total)}</b></span>
+                  <span>Deuda: <b className={pendingDeleteRecord.totalDue > 0 ? 'rose-text' : ''}>{pendingDeleteRecord.totalDue > 0 ? money(pendingDeleteRecord.totalDue) : 'Al día'}</b></span>
+                </div>
+              </div>
+            )}
+            <div className="payment-note">Se quita solo del directorio de clientes: sus recibos quedan guardados en Ingresos, así que el historial y las cuentas no cambian. Si vuelve a pagar, puedes agregarlo otra vez desde las sugerencias de la página Clientes.</div>
+            <div className="modal-actions-row">
+              <button className="outline-button full" onClick={() => setPendingDelete(null)}>Cancelar</button>
+              <button className="danger-button full" onClick={confirmRemovePerson}>Eliminar del directorio</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-    {showVoucher && selectedVoucher && <div className="modal-backdrop" onClick={() => setShowVoucher(false)}><div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
-      <div className="receipt-actions"><span>Vista previa del comprobante (2 copias)</span><button className="close-button" onClick={() => setShowVoucher(false)}>×</button></div>
-      <div className="receipt-print-sheet">
-        {renderVoucherCopy(selectedVoucher, 'beneficiario', voucherPaperRef)}
-        <div className="cut-line"><span>✂ Recortar aquí</span></div>
-        {renderVoucherCopy(selectedVoucher, 'administración')}
-      </div>
-      <div className="receipt-actions-row">
-        <button className="outline-button full" onClick={() => window.print()}>Imprimir las 2 copias <span>↗</span></button>
-        <button className="primary-button full" disabled={sharingReceipt} onClick={() => shareAsImage(voucherPaperRef.current, `${selectedVoucher.voucher}.png`, `Comprobante ${selectedVoucher.voucher} - ${selectedVoucher.recipient} - ${money(selectedVoucher.amount)}`)}>{sharingReceipt ? 'Generando imagen…' : 'Enviar por WhatsApp'} <span>↗</span></button>
-      </div>
-    </div></div>}
-  </div>
+      {showReceipt && selectedReceipt && (
+        <div className="modal-backdrop" onClick={() => setShowReceipt(false)}>
+          <div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="receipt-actions"><span>Vista previa del comprobante (2 copias)</span><button className="close-button" onClick={() => setShowReceipt(false)}>×</button></div>
+            <div className="receipt-print-sheet">
+              {renderReceiptCopy(selectedReceipt, 'cliente', receiptPaperRef)}
+              <div className="cut-line"><span>✂ Recortar aquí</span></div>
+              {renderReceiptCopy(selectedReceipt, 'administración')}
+            </div>
+            <div className="receipt-actions-row">
+              <button className="outline-button full" onClick={() => window.print()}>Imprimir las 2 copias <span>↗</span></button>
+              <button className="primary-button full" disabled={sharingReceipt} onClick={() => shareAsImage(receiptPaperRef.current, `${selectedReceipt.receipt}.png`, `Recibo ${selectedReceipt.receipt} - ${selectedReceipt.person} - ${money(selectedReceipt.amount)}`)}>{sharingReceipt ? 'Generando imagen…' : 'Enviar por WhatsApp'} <span>↗</span></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVoucher && selectedVoucher && (
+        <div className="modal-backdrop" onClick={() => setShowVoucher(false)}>
+          <div className="receipt-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="receipt-actions"><span>Vista previa del comprobante (2 copias)</span><button className="close-button" onClick={() => setShowVoucher(false)}>×</button></div>
+            <div className="receipt-print-sheet">
+              {renderVoucherCopy(selectedVoucher, 'beneficiario', voucherPaperRef)}
+              <div className="cut-line"><span>✂ Recortar aquí</span></div>
+              {renderVoucherCopy(selectedVoucher, 'administración')}
+            </div>
+            <div className="receipt-actions-row">
+              <button className="outline-button full" onClick={() => window.print()}>Imprimir las 2 copias <span>↗</span></button>
+              <button className="primary-button full" disabled={sharingReceipt} onClick={() => shareAsImage(voucherPaperRef.current, `${selectedVoucher.voucher}.png`, `Comprobante ${selectedVoucher.voucher} - ${selectedVoucher.recipient} - ${money(selectedVoucher.amount)}`)}>{sharingReceipt ? 'Generando imagen…' : 'Enviar por WhatsApp'} <span>↗</span></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Panel de administración de usuarios — solo para Ovet Zúñiga */}
+      {showUserManagement && isPrimaryAdmin && currentUser && (
+        <UserManagement
+          accounts={accounts}
+          currentUserId={currentUser.id}
+          onChange={setAccounts}
+          onClose={() => setShowUserManagement(false)}
+        />
+      )}
+    </div>
+  )
 }
 
 export default App
