@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import type { Account, Permission } from './types'
-import { loadAccounts, saveAccounts, seedIfEmpty } from './utils/storage'
+import { loadAccounts, saveAccounts, seedIfEmpty, migratePermissions } from './utils/storage'
 import UserManagement from './components/UserManagement'
 import './App.css'
 
@@ -271,7 +271,10 @@ function App() {
   const [loggedUser, setLoggedUser] = useState<string | null>(null)
   const [activePage, setActivePage] = useState<string>('Resumen')
 
-  const [accounts, setAccounts] = useState<Account[]>(() => seedIfEmpty(loadAccounts()))
+  const [accounts, setAccounts] = useState<Account[]>(() =>
+    migratePermissions(seedIfEmpty(loadAccounts()))
+  )
+  
   useEffect(() => { saveAccounts(accounts) }, [accounts])
 
   const [showUserManagement, setShowUserManagement] = useState(false)

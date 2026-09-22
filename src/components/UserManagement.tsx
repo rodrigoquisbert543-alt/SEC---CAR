@@ -26,7 +26,7 @@ export default function UserManagement({ accounts, currentUserId, onChange, onCl
   needsPassword: true,
   fullName: '',
   role: 'user',
-  permissions: ['view_records'],
+  permissions: ['ingresos_ver', 'clientes_ver', 'eventos_ver', 'reportes_ver'],
   active: true,
   createdAt: Date.now(),
 })
@@ -195,7 +195,9 @@ function UserEditor({
     setDraft((d) => ({
       ...d,
       role,
-      permissions: role === 'user' && d.permissions.length === 0 ? ['view_records'] : d.permissions,
+      permissions: role === 'user' && d.permissions.length === 0
+  ? ['ingresos_ver', 'clientes_ver', 'eventos_ver', 'reportes_ver']
+  : d.permissions,
     }))
   }
 
