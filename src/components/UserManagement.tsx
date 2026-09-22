@@ -19,16 +19,17 @@ export default function UserManagement({ accounts, currentUserId, onChange, onCl
   const [error, setError] = useState('')
 
   const createBlank = (): Account => ({
-    id: uid(),
-    name: '',
-    username: '',
-    password: '',
-    role: 'user',
-    permissions: ['view_records'],
-    active: true,
-    createdAt: Date.now(),
-  })
-
+  id: uid(),
+  name: '',
+  username: '',
+  password: '',
+  needsPassword: true,
+  fullName: '',
+  role: 'user',
+  permissions: ['view_records'],
+  active: true,
+  createdAt: Date.now(),
+})
   const handleSave = (acc: Account) => {
     setError('')
     if (!acc.name.trim() || !acc.username.trim()) {
