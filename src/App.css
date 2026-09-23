@@ -225,3 +225,31 @@
   border-radius: 50%;
   display: block;
 }
+/* Inputs de fecha en tema oscuro — se aplican a TODOS los campos de fecha */
+.app-shell.dark input[type="date"] {
+  background: #0e1512;
+  border-color: #223530;
+  color: #e4efea;
+  color-scheme: dark;
+}
+
+.app-shell.dark input[type="date"]::-webkit-datetime-edit,
+.app-shell.dark input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.app-shell.dark input[type="date"]::-webkit-datetime-edit-text,
+.app-shell.dark input[type="date"]::-webkit-datetime-edit-month-field,
+.app-shell.dark input[type="date"]::-webkit-datetime-edit-day-field,
+.app-shell.dark input[type="date"]::-webkit-datetime-edit-year-field {
+  color: #e4efea;
+}
+
+.app-shell.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: .9;
+  cursor: pointer;
+}
+
+/* Respaldo por si el navegador ignora color-scheme */
+@supports not (color-scheme: dark) {
+  .app-shell.dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.6);
+  }
+}

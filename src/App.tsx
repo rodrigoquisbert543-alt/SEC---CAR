@@ -4,6 +4,8 @@ import type { Account, Permission } from './types'
 import UserManagement from './components/UserManagement'
 import { fileToAvatar } from './utils/image'
 import './App.css'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import { loadAccounts, saveAccounts, seedIfEmpty, migratePermissions } from './utils/storage'
 
 // ============================================================
@@ -314,7 +316,7 @@ const initialExpenses: Expense[] = [
 const initialEventOptions = ['Campamento juvenil', 'Seminario de liderazgo', 'Retiro de damas 2024']
 const initialCategoryOptions = ['Servicios básicos', 'Mantenimiento', 'Materiales y suministros', 'Alimentación', 'Transporte', 'Honorarios', 'Otros']
 const initialPeople: Person[] = []
-const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Clientes'] as const
+const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Clientes' ] as const
 const eventManager = 'Ovet Zúñiga'
 
 // ============================================================
@@ -323,6 +325,14 @@ const eventManager = 'Ovet Zúñiga'
 function App() {
   const [loggedUser, setLoggedUser] = useState<string | null>(null)
   const [activePage, setActivePage] = useState<string>('Resumen')
+  // Filtros avanzados de Reportes / PDF
+  const [pdfStartDate, setPdfStartDate] = useState('')
+  const [pdfEndDate, setPdfEndDate] = useState('')
+  const [pdfTipo, setPdfTipo] = useState<'todos' | 'ingresos' | 'egresos'>('todos')
+  const [pdfPersona, setPdfPersona] = useState('')
+  const [pdfConcepto, setPdfConcepto] = useState('')
+  const [pdfMontoMin, setPdfMontoMin] = useState('')
+  const [pdfMontoMax, setPdfMontoMax] = useState('')
 
   const [accounts, setAccounts] = useState<Account[]>(() =>
     migratePermissions(seedIfEmpty(loadAccounts()))
@@ -679,7 +689,103 @@ function App() {
     if (confirmClear.trim().toUpperCase() !== 'BORRAR') return
     setPayments([]); setExpenses([]); setConfirmClear('')
   }
+  // --- REPORTES: filtrar movimientos para el PDF ---
+  const pdfData = useMemo(() => {
+    const ingresos = payments
+      .filter((p) => p.status === 'Aplicado')
+      .filter((p) => !pdfStartDate || p.date >= pdfStartDate)
+      .filter((p) => !pdfEndDate || p.date <= pdfEndDate)
+      .filter((p) => !pdfPersona || p.person.toLowerCase().includes(pdfPersona.toLowerCase()))
+      .filter((p) => !pdfConcepto || p.concept.toLowerCase().includes(pdfConcepto.toLowerCase()))
+      .filter((p) => !pdfMontoMin || p.amount >= Number(pdfMontoMin))
+      .filter((p) => !pdfMontoMax || p.amount <= Number(pdfMontoMax))
+      .map((p) => ({
+        tipo: 'Ingreso',
+        codigo: p.receipt,
+        fecha: p.date,
+        persona: p.person,
+        concepto: p.concept,
+        monto: p.amount,
+        efectivo: p.cash,
+        qr: p.qr,
+        registradoPor: accountFullName(p.issuedBy),
+      }))
 
+    const egresos = expenses
+      .filter((e) => e.status === 'Aplicado')
+      .filter((e) => !pdfStartDate || e.date >= pdfStartDate)
+      .filter((e) => !pdfEndDate || e.date <= pdfEndDate)
+      .filter((e) => !pdfPersona || e.recipient.toLowerCase().includes(pdfPersona.toLowerCase()))
+      .filter((e) => !pdfConcepto || e.concept.toLowerCase().includes(pdfConcepto.toLowerCase()))
+      .filter((e) => !pdfMontoMin || e.amount >= Number(pdfMontoMin))
+      .filter((e) => !pdfMontoMax || e.amount <= Number(pdfMontoMax))
+      .map((e) => ({
+        tipo: 'Egreso',
+        codigo: e.voucher,
+        fecha: e.date,
+        persona: e.recipient,
+        concepto: e.concept,
+        monto: e.amount,
+        efectivo: e.cash,
+        qr: e.qr,
+        registradoPor: accountFullName(e.issuedBy),
+      }))
+
+    if (pdfTipo === 'ingresos') return ingresos
+    if (pdfTipo === 'egresos') return egresos
+    return [...ingresos, ...egresos].sort((a, b) => a.fecha.localeCompare(b.fecha))
+  }, [
+    payments, expenses,
+    pdfStartDate, pdfEndDate, pdfTipo,
+    pdfPersona, pdfConcepto, pdfMontoMin, pdfMontoMax,
+  ])
+
+  // --- REPORTES: generar y descargar el PDF ---
+  const descargarReportePDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+
+    doc.setFontSize(15)
+    doc.text('SEC-CAR — Seminario de Educación Cristiana Caranavi', 14, 15)
+
+    doc.setFontSize(9)
+    doc.text(`Generado: ${formatDate(todayISO())}`, 14, 22)
+    doc.text(
+      `Período: ${pdfStartDate || 'inicio'}  →  ${pdfEndDate || 'hoy'}   ·   Tipo: ${pdfTipo}`,
+      14, 27
+    )
+
+    const totalIngresos = pdfData.filter((d) => d.tipo === 'Ingreso').reduce((s, d) => s + d.monto, 0)
+    const totalEgresos = pdfData.filter((d) => d.tipo === 'Egreso').reduce((s, d) => s + d.monto, 0)
+
+    doc.setFontSize(10)
+    doc.text(
+      `Ingresos: Bs ${totalIngresos.toLocaleString('es-BO')}   ·   ` +
+      `Egresos: Bs ${totalEgresos.toLocaleString('es-BO')}   ·   ` +
+      `Neto: Bs ${(totalIngresos - totalEgresos).toLocaleString('es-BO')}`,
+      14, 33
+    )
+
+    autoTable(doc, {
+      startY: 38,
+      head: [['Tipo', 'Código', 'Fecha', 'Persona / Destinatario', 'Concepto', 'Monto', 'Efectivo', 'QR', 'Registrado por']],
+      body: pdfData.map((d) => [
+        d.tipo,
+        d.codigo,
+        formatDate(d.fecha),
+        d.persona,
+        d.concepto,
+        money(d.monto),
+        money(d.efectivo),
+        money(d.qr),
+        d.registradoPor,
+      ]),
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    })
+
+    doc.save(`SEC-CAR-reporte-${todayISO()}.pdf`)
+  }
   // ============================================================
   // RENDER: PANTALLA DE ACCESO
   // ============================================================
@@ -1003,6 +1109,88 @@ function App() {
 
         {activePage === 'Reportes' && (
           <>
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h3>Descargar reporte en PDF</h3>
+                  <p>Filtra por fecha, tipo, cliente, evento o monto. El PDF incluye todos los movimientos que coincidan.</p>
+                </div>
+              </div>
+
+              <div className="inline-form">
+                <label>Desde
+                  <input type="date" value={pdfStartDate} onChange={(e) => setPdfStartDate(e.target.value)} />
+                </label>
+                <label>Hasta
+                  <input type="date" value={pdfEndDate} onChange={(e) => setPdfEndDate(e.target.value)} />
+                </label>
+                <label>Tipo
+                  <select value={pdfTipo} onChange={(e) => setPdfTipo(e.target.value as 'todos' | 'ingresos' | 'egresos')}>
+                    <option value="todos">Todos</option>
+                    <option value="ingresos">Solo ingresos</option>
+                    <option value="egresos">Solo egresos</option>
+                  </select>
+                </label>
+                <label>Cliente / Destinatario
+                  <input value={pdfPersona} onChange={(e) => setPdfPersona(e.target.value)} placeholder="Nombre..." />
+                </label>
+                <label>Evento / Concepto
+                  <input value={pdfConcepto} onChange={(e) => setPdfConcepto(e.target.value)} placeholder="Ej. Campamento..." />
+                </label>
+                <label>Monto mínimo
+                  <input type="number" value={pdfMontoMin} onChange={(e) => setPdfMontoMin(e.target.value)} placeholder="0" />
+                </label>
+                <label>Monto máximo
+                  <input type="number" value={pdfMontoMax} onChange={(e) => setPdfMontoMax(e.target.value)} placeholder="0" />
+                </label>
+              </div>
+
+              <div className="payment-note">
+                {pdfData.length} movimientos encontrados · 
+                Ingresos: <b>{money(pdfData.filter((d) => d.tipo === 'Ingreso').reduce((s, d) => s + d.monto, 0))}</b> · 
+                Egresos: <b>{money(pdfData.filter((d) => d.tipo === 'Egreso').reduce((s, d) => s + d.monto, 0))}</b>
+              </div>
+
+              <div className="inline-form">
+                <button
+                  className="primary-button"
+                  onClick={descargarReportePDF}
+                  disabled={pdfData.length === 0}
+                >
+                  Descargar PDF ({pdfData.length} movimientos) <span>↓</span>
+                </button>
+              </div>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Tipo</th><th>Código</th><th>Fecha</th><th>Persona</th>
+                      <th>Concepto</th><th>Monto</th><th>Registrado por</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pdfData.slice(0, 50).map((d, i) => (
+                      <tr key={`${d.codigo}-${i}`}>
+                        <td><span className={d.tipo === 'Ingreso' ? 'status' : 'status void'}>{d.tipo}</span></td>
+                        <td>{d.codigo}</td>
+                        <td>{formatDate(d.fecha)}</td>
+                        <td>{d.persona}</td>
+                        <td>{d.concepto}</td>
+                        <td>{money(d.monto)}</td>
+                        <td>{d.registradoPor}</td>
+                      </tr>
+                    ))}
+                    {pdfData.length === 0 && (
+                      <tr><td className="empty-cell" colSpan={7}>No hay movimientos con esos filtros.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {pdfData.length > 50 && (
+                <div className="table-note">Mostrando 50 de {pdfData.length}. El PDF incluye todos.</div>
+              )}
+            </section>
             <section className="stats-grid">
               <div className="stat-card accent-card"><div className="stat-head"><span>TOTAL INGRESOS</span><i>↗</i></div><strong>{money(totalIncome)}</strong><small>Efectivo {money(activeIncome.reduce((s, p) => s + p.cash, 0))} · QR {money(activeIncome.reduce((s, p) => s + p.qr, 0))}</small></div>
               <div className="stat-card"><div className="stat-head"><span>TOTAL EGRESOS</span><i className="rose-icon">↘</i></div><strong>{money(totalExpense)}</strong><small>Efectivo {money(activeExpenses.reduce((s, e) => s + e.cash, 0))} · QR {money(activeExpenses.reduce((s, e) => s + e.qr, 0))}</small></div>
