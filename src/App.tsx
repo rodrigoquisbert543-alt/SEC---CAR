@@ -693,6 +693,8 @@ function App() {
     )
   }
 
+  const loggedAccount = accounts.find((a) => a.name === loggedUser)
+
   // ============================================================
   // RENDER: APP PRINCIPAL
   // ============================================================
@@ -732,12 +734,24 @@ function App() {
             <div><strong>Sincronizado</strong><small>Todos los cambios guardados</small></div>
           </div>
           <div className="profile">
-            <div className="avatar"><PersonIcon size={16} /></div>
-            <div>
-              <strong>{loggedUser}</strong>
-              <small>{currentUser?.role === 'admin' ? 'Administrador' : 'Usuario'}</small>
+            <div className="avatar">
+              {loggedAccount?.avatar
+                ? <img src={loggedAccount.avatar} alt={loggedAccount.name} />
+                : loggedUser[0]
+              }
             </div>
-            <button className="logout-button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={() => setLoggedUser(null)}>⏻</button>
+            <div>
+              <strong>{loggedAccount?.fullName?.trim() || loggedUser}</strong>
+              <small>Administrador</small>
+            </div>
+            <button
+              className="logout-button"
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
+              onClick={() => setLoggedUser(null)}
+            >
+              ⏻
+            </button>
           </div>
         </div>
       </aside>
