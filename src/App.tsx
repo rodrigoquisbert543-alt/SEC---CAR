@@ -1,9 +1,10 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import type { Account, Permission } from './types'
-import { loadAccounts, saveAccounts, seedIfEmpty, migratePermissions } from './utils/storage'
 import UserManagement from './components/UserManagement'
+import { fileToAvatar } from './utils/image'
 import './App.css'
+import { loadAccounts, saveAccounts, seedIfEmpty, migratePermissions } from './utils/storage'
 
 // ============================================================
 // CONSTANTES GENERALES
@@ -40,6 +41,7 @@ function AccessScreen({
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [fullName, setFullName] = useState('')
+  const [avatarDraft, setAvatarDraft] = useState<string>('')
   const [mode, setMode] = useState<'login' | 'first' | 'recovery'>('login')
   const [message, setMessage] = useState('')
 
@@ -72,16 +74,21 @@ function AccessScreen({
   const persist = (next: Account[]) => onChangeAccounts(next)
 
   const chooseUser = (name: string) => {
-    setSelected(name); setPassword(''); setConfirm(''); setFullName(''); setMessage(''); setMode('login')
+  setSelected(name); setPassword(''); setConfirm(''); setFullName(''); setAvatarDraft(''); setMessage(''); setMode('login')
   }
-
   const submit = () => {
     if (mode === 'first') {
       if (!fullName.trim()) { setMessage('Escribe tu nombre y apellido; aparecerá en la firma de los comprobantes.'); return }
       if (password.length < 6 || password !== confirm) { setMessage('La contraseña debe tener 6 caracteres y coincidir en ambos campos.'); return }
-      persist(accounts.map((account) => account.name === selected ? { ...account, password, needsPassword: false, fullName: fullName.trim() } : account))
+      persist(accounts.map((account) => account.name === selected ? {
+        ...account,
+        password,
+        needsPassword: false,
+        fullName: fullName.trim(),
+        avatar: avatarDraft || account.avatar,
+      } : account))
       setMessage('Contraseña creada. Ya puedes ingresar a SEC-CAR.')
-      setMode('login'); setPassword(''); setConfirm(''); setFullName(''); return
+      setMode('login'); setPassword(''); setConfirm(''); setFullName(''); setAvatarDraft(''); return
     }
     if (password && password === current.password && !current.needsPassword) { onLogin(selected); return }
     setMessage('La contraseña no coincide. Si la olvidaste, usa "Recuperar acceso".')
@@ -123,7 +130,13 @@ function AccessScreen({
                     className={selected === account.name ? 'user-choice selected' : 'user-choice'}
                     onClick={() => chooseUser(account.name)}
                   >
-                    <span className="auth-avatar"><PersonIcon size={14} /></span>
+                    <span className="auth-avatar">
+                      {account.avatar ? (
+                        <img src={account.avatar} alt={account.name} />
+                      ) : (
+                        <PersonIcon size={14} />
+                      )}
+                    </span>
                     <span>
                       <strong>{account.name}</strong>
                       <small>{account.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small>
@@ -133,12 +146,52 @@ function AccessScreen({
                 ))}
               </div>
             </div>
-
             {mode === 'first' && (
-              <label className="auth-label">
-                Nombre y apellido
-                <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Huanca" />
-              </label>
+              <>
+                <label className="auth-label">
+                  Nombre y apellido
+                  <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Huanca" />
+                </label>
+
+                <label className="auth-label">
+                  Foto de perfil (opcional)
+                  <div className="avatar-upload-wrapper">
+                    <div className="avatar-preview-large">
+                      {avatarDraft ? (
+                        <img src={avatarDraft} alt="Vista previa" />
+                      ) : (
+                        <PersonIcon size={26} />
+                      )}
+                    </div>
+                    <label className="avatar-upload-btn">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0]
+                          if (!file) return
+                          try {
+                            const dataUrl = await fileToAvatar(file, 200)
+                            setAvatarDraft(dataUrl)
+                          } catch {
+                            setMessage('No se pudo cargar la imagen. Intenta con otra.')
+                          }
+                        }}
+                      />
+                      {avatarDraft ? 'Cambiar foto' : 'Subir foto'}
+                    </label>
+                    {avatarDraft && (
+                      <button
+                        type="button"
+                        className="avatar-remove-btn"
+                        onClick={() => setAvatarDraft('')}
+                      >
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                </label>
+              </>
             )}
             <label className="auth-label">
               {mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}

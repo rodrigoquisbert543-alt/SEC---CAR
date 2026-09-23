@@ -120,4 +120,98 @@
 .app-shell.dark .form-message { background: #221e14; border-color: #463c22; color: #e7c39a; }
 .app-shell.dark .outline-button { background: #16211d; border-color: #46372c; color: #d9bc7f; }
 .app-shell.dark .danger-button { background: #2b1a17; border-color: #4d3129; color: #f0a294; }
+/* ============================================================
+   AVATARES DE USUARIO (fotos de perfil)
+   ============================================================ */
 
+.auth-avatar img,
+.avatar img,
+.tiny-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.avatar-upload-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.avatar-preview-large {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d8e7dc, #b8d4c7);
+  color: #286052;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 3px 8px #173d3d22;
+}
+
+.avatar-preview-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-upload-btn {
+  position: relative;
+  display: inline-block;
+  background: #fff;
+  border: 1px solid #dfe6e3;
+  border-radius: 5px;
+  padding: 9px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #a9863f;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.avatar-upload-btn:hover {
+  border-color: #b8862c;
+  background: #fffaf3;
+}
+
+.avatar-upload-btn input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-remove-btn {
+  background: transparent;
+  border: 0;
+  color: #b3463a;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.avatar-remove-btn:hover {
+  background: #fdeceb;
+}
+
+.app-shell.dark .avatar-preview-large {
+  background: linear-gradient(135deg, #163a26, #1c3d2a);
+  color: #7fd9a8;
+  border-color: #223530;
+}
+
+.app-shell.dark .avatar-upload-btn {
+  background: #16211d;
+  border-color: #223530;
+  color: #d9bc7f;
+}

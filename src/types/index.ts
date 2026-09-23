@@ -49,6 +49,7 @@ export type Account = {
   permissions: Permission[]
   active: boolean
   createdAt: number
+  avatar?: string   // ← NUEVO: foto de perfil en base64 (data:image/jpeg;base64,...)
 }
 
 // ============================================================
