@@ -13,6 +13,10 @@ import { loadAccounts, saveAccounts, seedIfEmpty, migratePermissions } from './u
 // ============================================================
 const adminResetKey = import.meta.env.VITE_ADMIN_RESET_KEY || 'SEC-CAR-ADMIN'
 const PRIMARY_ADMIN = 'Ovet Zúñiga'
+// Cierre automático de sesión tras inactividad (30 minutos por defecto)
+const SESSION_TIMEOUT_MS = 30  * 60 * 1000
+// Cada cuánto se revisa si ya pasó el tiempo límite (30 segundos)
+const SESSION_CHECK_INTERVAL_MS = 30 * 1000
 
 function hasPermission(acc: Account | null, perm: Permission): boolean {
   if (!acc) return false
@@ -340,6 +344,57 @@ function App() {
   
   useEffect(() => { saveAccounts(accounts) }, [accounts])
 
+  // ============================================================
+// CIERRE AUTOMÁTICO DE SESIÓN POR INACTIVIDAD
+// ============================================================
+  useEffect(() => {
+    if (!loggedUser) return
+
+    // Cada vez que el usuario hace algo, reinicia el contador
+    const registrarActividad = () => {
+      lastActivityRef.current = Date.now()
+      // Si había aviso de "¿sigues ahí?", lo quitamos al volver a interactuar
+      setSessionWarning((prev) => (prev ? false : prev))
+    }
+
+    const eventos: (keyof WindowEventMap)[] = [
+      'mousemove',
+      'mousedown',
+      'keydown',
+      'touchstart',
+      'scroll',
+      'click',
+    ]
+    eventos.forEach((evt) => window.addEventListener(evt, registrarActividad, { passive: true }))
+
+    // Al iniciar sesión, marcamos la hora actual como última actividad
+    lastActivityRef.current = Date.now()
+
+    // Revisamos cada 30 s si ya se pasó el límite
+    const interval = window.setInterval(() => {
+      const inactivo = Date.now() - lastActivityRef.current
+      const restante = SESSION_TIMEOUT_MS - inactivo
+
+      // Faltando 60 s, mostramos el aviso
+      if (restante <= 60 * 1000 && restante > 0) {
+        setSessionWarning(true)
+      }
+
+      // Se cumplió el tiempo → cerrar sesión
+      if (inactivo >= SESSION_TIMEOUT_MS) {
+        setSessionWarning(false)
+        setLoggedUser(null)
+        setActivePage('Resumen')
+      }
+    }, SESSION_CHECK_INTERVAL_MS)
+
+    // Limpieza cuando el usuario cierra sesión o cambia de cuenta
+    return () => {
+      eventos.forEach((evt) => window.removeEventListener(evt, registrarActividad))
+      window.clearInterval(interval)
+      setSessionWarning(false)
+    }
+  }, [loggedUser])
   const [showUserManagement, setShowUserManagement] = useState(false)
 
   const currentUser = useMemo(
@@ -356,7 +411,8 @@ function App() {
   const [eventPrices, setEventPrices] = usePersistedState<Record<string, number>>('sec-car-event-prices', {})
   const [fullNameDraft, setFullNameDraft] = useState('')
   const [theme, setTheme] = usePersistedState<'light' | 'dark'>('sec-car-theme', 'light')
-
+// Aviso 1 minuto antes de cerrar sesión
+  const [sessionWarning, setSessionWarning] = useState(false)
   const [filterStartDate, setFilterStartDate] = usePersistedState('sec-car-filter-start', '')
   const [filterEndDate, setFilterEndDate] = usePersistedState('sec-car-filter-end', '')
 
@@ -381,6 +437,7 @@ function App() {
   const [personMessage, setPersonMessage] = useState('')
   const [pendingDelete, setPendingDelete] = useState<Person | null>(null)
   const [confirmClear, setConfirmClear] = useState('')
+  const lastActivityRef = useRef<number>(Date.now())
   const receiptPaperRef = useRef<HTMLDivElement | null>(null)
   const voucherPaperRef = useRef<HTMLDivElement | null>(null)
   const [sharingReceipt, setSharingReceipt] = useState(false)
@@ -824,7 +881,34 @@ function App() {
         <button className={activePage === 'Reportes' ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage('Reportes')}>
           <span className="nav-icon">▤</span>Reportes
         </button>
-
+        {sessionWarning && (
+          <div className="modal-backdrop">
+            <div className="modal">
+              <div className="modal-title">
+                <div>
+                  <span className="eyebrow">SEGURIDAD</span>
+                  <h2>¿Sigues ahí?</h2>
+                </div>
+              </div>
+              <p style={{ color: '#63736f', fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>
+                Tu sesión se cerrará automáticamente en <b>1 minuto</b> por inactividad.
+                Si sigues trabajando, pulsa el botón para continuar.
+              </p>
+              <div className="payment-note">
+                Por seguridad, el sistema te pedirá la contraseña otra vez cuando vuelvas a ingresar.
+              </div>
+              <button
+                className="primary-button full"
+                onClick={() => {
+                  lastActivityRef.current = Date.now()
+                  setSessionWarning(false)
+                }}
+              >
+                Sí, continuar conectado <span>→</span>
+              </button>
+            </div>
+          </div>
+        )}
         {isPrimaryAdmin && (
           <>
             <div className="side-label report-label">ADMINISTRACIÓN</div>
