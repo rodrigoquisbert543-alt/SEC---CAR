@@ -1,0 +1,19 @@
+{
+  "name": "SEC-CAR — Sistema de control financiero",
+  "short_name": "SEC-CAR",
+  "description": "Seminario de Educación Cristiana Caranavi",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#12472b",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/logo-seccar-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
