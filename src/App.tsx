@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import type { Account, Permission } from './types'
+import { supabase } from './utils/supabase'
 import UserManagement from './components/UserManagement'
 import { fileToAvatar } from './utils/image'
 import './App.css'
@@ -13,9 +14,7 @@ import { loadAccounts, saveAccounts, seedIfEmpty, migratePermissions } from './u
 // ============================================================
 const adminResetKey = import.meta.env.VITE_ADMIN_RESET_KEY || 'SEC-CAR-ADMIN'
 const PRIMARY_ADMIN = 'Ovet Zúñiga'
-// Cierre automático de sesión tras inactividad (30 minutos por defecto)
-const SESSION_TIMEOUT_MS = 30  * 60 * 1000
-// Cada cuánto se revisa si ya pasó el tiempo límite (30 segundos)
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000
 const SESSION_CHECK_INTERVAL_MS = 30 * 1000
 
 function hasPermission(acc: Account | null, perm: Permission): boolean {
@@ -24,7 +23,6 @@ function hasPermission(acc: Account | null, perm: Permission): boolean {
   return acc.permissions.includes(perm)
 }
 
-// Ícono de persona reutilizable (evita repetir el SVG por todo el código)
 const PersonIcon = ({ size = 14 }: { size?: number }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" width={size} height={size} aria-hidden="true">
     <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z" />
@@ -80,12 +78,25 @@ function AccessScreen({
   const persist = (next: Account[]) => onChangeAccounts(next)
 
   const chooseUser = (name: string) => {
-  setSelected(name); setPassword(''); setConfirm(''); setFullName(''); setAvatarDraft(''); setMessage(''); setMode('login')
+    setSelected(name)
+    setPassword('')
+    setConfirm('')
+    setFullName('')
+    setAvatarDraft('')
+    setMessage('')
+    setMode('login')
   }
+
   const submit = () => {
     if (mode === 'first') {
-      if (!fullName.trim()) { setMessage('Escribe tu nombre y apellido; aparecerá en la firma de los comprobantes.'); return }
-      if (password.length < 6 || password !== confirm) { setMessage('La contraseña debe tener 6 caracteres y coincidir en ambos campos.'); return }
+      if (!fullName.trim()) {
+        setMessage('Escribe tu nombre y apellido; aparecerá en la firma de los comprobantes.')
+        return
+      }
+      if (password.length < 6 || password !== confirm) {
+        setMessage('La contraseña debe tener 6 caracteres y coincidir en ambos campos.')
+        return
+      }
       persist(accounts.map((account) => account.name === selected ? {
         ...account,
         password,
@@ -94,16 +105,29 @@ function AccessScreen({
         avatar: avatarDraft || account.avatar,
       } : account))
       setMessage('Contraseña creada. Ya puedes ingresar a SEC-CAR.')
-      setMode('login'); setPassword(''); setConfirm(''); setFullName(''); setAvatarDraft(''); return
+      setMode('login')
+      setPassword('')
+      setConfirm('')
+      setFullName('')
+      setAvatarDraft('')
+      return
     }
-    if (password && password === current.password && !current.needsPassword) { onLogin(selected); return }
+    if (password && password === current.password && !current.needsPassword) {
+      onLogin(selected)
+      return
+    }
     setMessage('La contraseña no coincide. Si la olvidaste, usa "Recuperar acceso".')
   }
 
   const resetAccess = () => {
-    if (password !== adminResetKey) { setMessage('Para restablecer accesos usa la clave administrativa definida por el responsable.'); return }
+    if (password !== adminResetKey) {
+      setMessage('Para restablecer accesos usa la clave administrativa definida por el responsable.')
+      return
+    }
     persist(accounts.map((account) => account.name === selected ? { ...account, password: '', needsPassword: true } : account))
-    setPassword(''); setMessage(`Acceso de ${selected} reiniciado. Deberá crear una contraseña nueva al ingresar.`); setMode('login')
+    setPassword('')
+    setMessage(`Acceso de ${selected} reiniciado. Deberá crear una contraseña nueva al ingresar.`)
+    setMode('login')
   }
 
   return (
@@ -145,7 +169,7 @@ function AccessScreen({
                     </span>
                     <span>
                       <strong>{account.name}</strong>
-                      <small>{account.needsPassword ? 'Primer ingreso' : 'Cuenta activa'}</small>
+                      <small style={{ fontSize: '12px' }}>{account.needsPassword ? 'Ingreso' : 'Cuenta activa'}</small>
                     </span>
                     {selected === account.name && <b>✓</b>}
                   </button>
@@ -305,22 +329,14 @@ const standingOf = (paid: number, price: number): PaymentStanding => {
 // ============================================================
 // DATOS INICIALES DE EJEMPLO
 // ============================================================
-const initialPayments: Payment[] = [
-  { id: '1', receipt: 'REC-00241', person: 'Abigail Mendoza', carnet: '', phone: '', concept: 'Retiro de damas 2024', date: '2024-06-12', amount: 250, cash: 250, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
-  { id: '2', receipt: 'REC-00240', person: 'Samuel Chambi', carnet: '', phone: '', concept: 'Campamento juvenil', date: '2024-06-11', amount: 180, cash: 80, qr: 100, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
-  { id: '3', receipt: 'REC-00239', person: 'Jorge Valdez', carnet: '', phone: '', concept: 'Seminario de liderazgo', date: '2024-06-10', amount: 90, cash: 0, qr: 90, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
-  { id: '4', receipt: 'REC-00238', person: 'María Elena Ruiz', carnet: '', phone: '', concept: 'Retiro de damas 2024', date: '2024-06-08', amount: 120, cash: 120, qr: 0, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
-]
+const initialPayments: Payment[] = []
 
-const initialExpenses: Expense[] = [
-  { id: 'e1', voucher: 'EGR-00032', concept: 'Pago de electricidad', recipient: 'ENDE', category: 'Servicios básicos', date: '2024-06-09', amount: 145, cash: 145, qr: 0, status: 'Aplicado', issuedBy: 'Ovet Zúñiga' },
-  { id: 'e2', voucher: 'EGR-00031', concept: 'Materiales para campamento', recipient: 'Ferretería Central', category: 'Materiales y suministros', date: '2024-06-07', amount: 210, cash: 60, qr: 150, status: 'Aplicado', issuedBy: 'Melitza Huanca' },
-]
+const initialExpenses: Expense[] = []
 
-const initialEventOptions = ['Campamento juvenil', 'Seminario de liderazgo', 'Retiro de damas 2024']
-const initialCategoryOptions = ['Servicios básicos', 'Mantenimiento', 'Materiales y suministros', 'Alimentación', 'Transporte', 'Honorarios', 'Otros']
+const initialEventOptions: string[] = []
+const initialCategoryOptions: string[] = []
 const initialPeople: Person[] = []
-const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Clientes' ] as const
+const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Clientes'] as const
 const eventManager = 'Ovet Zúñiga'
 
 // ============================================================
@@ -329,7 +345,7 @@ const eventManager = 'Ovet Zúñiga'
 function App() {
   const [loggedUser, setLoggedUser] = useState<string | null>(null)
   const [activePage, setActivePage] = useState<string>('Resumen')
-  // Filtros avanzados de Reportes / PDF
+
   const [pdfStartDate, setPdfStartDate] = useState('')
   const [pdfEndDate, setPdfEndDate] = useState('')
   const [pdfTipo, setPdfTipo] = useState<'todos' | 'ingresos' | 'egresos'>('todos')
@@ -339,21 +355,45 @@ function App() {
   const [pdfMontoMax, setPdfMontoMax] = useState('')
 
   const [accounts, setAccounts] = useState<Account[]>(() =>
-    migratePermissions(seedIfEmpty(loadAccounts()))
+    migratePermissions(loadAccounts())
   )
   
   useEffect(() => { saveAccounts(accounts) }, [accounts])
 
   // ============================================================
-// CIERRE AUTOMÁTICO DE SESIÓN POR INACTIVIDAD
-// ============================================================
+  // VERIFICAR PERMISOS EN TIEMPO REAL
+  // ============================================================
   useEffect(() => {
     if (!loggedUser) return
 
-    // Cada vez que el usuario hace algo, reinicia el contador
+    const currentAccount = accounts.find((a) => a.name === loggedUser)
+
+    if (!currentAccount) {
+      setLoggedUser(null)
+      setActivePage('Resumen')
+      alert('Tu cuenta fue eliminada por el administrador.')
+      return
+    }
+
+    if (!currentAccount.active) {
+      setLoggedUser(null)
+      setActivePage('Resumen')
+      alert('Tu cuenta fue desactivada por el administrador.')
+      return
+    }
+  }, [accounts, loggedUser])
+
+  // ============================================================
+  // CIERRE AUTOMÁTICO DE SESIÓN POR INACTIVIDAD
+  // ============================================================
+  const lastActivityRef = useRef<number>(Date.now())
+  const [sessionWarning, setSessionWarning] = useState(false)
+
+  useEffect(() => {
+    if (!loggedUser) return
+
     const registrarActividad = () => {
       lastActivityRef.current = Date.now()
-      // Si había aviso de "¿sigues ahí?", lo quitamos al volver a interactuar
       setSessionWarning((prev) => (prev ? false : prev))
     }
 
@@ -367,20 +407,16 @@ function App() {
     ]
     eventos.forEach((evt) => window.addEventListener(evt, registrarActividad, { passive: true }))
 
-    // Al iniciar sesión, marcamos la hora actual como última actividad
     lastActivityRef.current = Date.now()
 
-    // Revisamos cada 30 s si ya se pasó el límite
     const interval = window.setInterval(() => {
       const inactivo = Date.now() - lastActivityRef.current
       const restante = SESSION_TIMEOUT_MS - inactivo
 
-      // Faltando 60 s, mostramos el aviso
       if (restante <= 60 * 1000 && restante > 0) {
         setSessionWarning(true)
       }
 
-      // Se cumplió el tiempo → cerrar sesión
       if (inactivo >= SESSION_TIMEOUT_MS) {
         setSessionWarning(false)
         setLoggedUser(null)
@@ -388,13 +424,13 @@ function App() {
       }
     }, SESSION_CHECK_INTERVAL_MS)
 
-    // Limpieza cuando el usuario cierra sesión o cambia de cuenta
     return () => {
       eventos.forEach((evt) => window.removeEventListener(evt, registrarActividad))
       window.clearInterval(interval)
       setSessionWarning(false)
     }
   }, [loggedUser])
+
   const [showUserManagement, setShowUserManagement] = useState(false)
 
   const currentUser = useMemo(
@@ -402,6 +438,7 @@ function App() {
     [accounts, loggedUser]
   )
   const isPrimaryAdmin = currentUser?.name === PRIMARY_ADMIN
+  const canManageUsers = hasPermission(currentUser, 'usuarios_gestionar')
 
   const [payments, setPayments] = usePersistedState<Payment[]>('sec-car-payments', initialPayments)
   const [expenses, setExpenses] = usePersistedState<Expense[]>('sec-car-expenses', initialExpenses)
@@ -411,8 +448,7 @@ function App() {
   const [eventPrices, setEventPrices] = usePersistedState<Record<string, number>>('sec-car-event-prices', {})
   const [fullNameDraft, setFullNameDraft] = useState('')
   const [theme, setTheme] = usePersistedState<'light' | 'dark'>('sec-car-theme', 'light')
-// Aviso 1 minuto antes de cerrar sesión
-  const [sessionWarning, setSessionWarning] = useState(false)
+
   const [filterStartDate, setFilterStartDate] = usePersistedState('sec-car-filter-start', '')
   const [filterEndDate, setFilterEndDate] = usePersistedState('sec-car-filter-end', '')
 
@@ -437,7 +473,6 @@ function App() {
   const [personMessage, setPersonMessage] = useState('')
   const [pendingDelete, setPendingDelete] = useState<Person | null>(null)
   const [confirmClear, setConfirmClear] = useState('')
-  const lastActivityRef = useRef<number>(Date.now())
   const receiptPaperRef = useRef<HTMLDivElement | null>(null)
   const voucherPaperRef = useRef<HTMLDivElement | null>(null)
   const [sharingReceipt, setSharingReceipt] = useState(false)
@@ -445,6 +480,26 @@ function App() {
   useEffect(() => {
     if (loggedUser) setFullNameDraft(accounts.find((account) => account.name === loggedUser)?.fullName || '')
   }, [loggedUser, accounts])
+
+  // ============================================================
+  // VERIFICAR QUE LA PÁGINA ACTUAL SEA ACCESIBLE
+  // ============================================================
+  useEffect(() => {
+    if (!currentUser) return
+
+    const puedeVer =
+      activePage === 'Resumen' ? true :
+      activePage === 'Ingresos' ? hasPermission(currentUser, 'ingresos_ver') :
+      activePage === 'Egresos' ? hasPermission(currentUser, 'egresos_ver') :
+      activePage === 'Eventos' ? hasPermission(currentUser, 'eventos_ver') :
+      activePage === 'Clientes' ? hasPermission(currentUser, 'clientes_ver') :
+      activePage === 'Reportes' ? hasPermission(currentUser, 'reportes_ver') :
+      false
+
+    if (!puedeVer) {
+      setActivePage('Resumen')
+    }
+  }, [activePage, currentUser])
 
   // ============================================================
   // COMPARTIR COMPROBANTES POR IMAGEN
@@ -475,6 +530,8 @@ function App() {
   // ============================================================
   // RENDERIZADO DE COMPROBANTES
   // ============================================================
+  const accountFullName = (name?: string) => (name && accounts.find((account) => account.name === name)?.fullName.trim()) || name || 'Administrador'
+
   const renderReceiptCopy = (payment: Payment, copy: 'cliente' | 'administración', ref?: React.RefObject<HTMLDivElement | null>) => (
     <div className="receipt-paper" ref={ref}>
       <div className="receipt-brand"><img src="/logo-seccar.png" alt="SEC-CAR" className="receipt-logo" />SEC-CAR<small>Seminario de Educación Cristiana Caranavi</small></div>
@@ -483,11 +540,7 @@ function App() {
       {payment.carnet && <div className="receipt-line"><span>N.º de carnet:</span><b>{payment.carnet}</b></div>}
       {payment.phone && <div className="receipt-line"><span>N.º de celular:</span><b>{payment.phone}</b></div>}
       <div className="receipt-line"><span>Concepto:</span><b>{payment.concept}</b></div>
-      
-      {/* 👇 NUEVA LÍNEA: Notas si existen 👇 */}
       {payment.notes && <div className="receipt-line"><span>Notas:</span><b>{payment.notes}</b></div>}
-      {/* 👆 FIN DE LA NUEVA LÍNEA 👆 */}
-      
       <div className="receipt-line"><span>Fecha:</span><b>{formatDate(payment.date)}</b></div>
       <div className="receipt-total"><span>TOTAL PAGADO</span><strong>{money(payment.amount)}</strong></div>
       <div className="receipt-methods"><span>Efectivo {money(payment.cash)}</span><span>QR {money(payment.qr)}</span></div>
@@ -599,6 +652,7 @@ function App() {
     if (!clean) return null
     return peopleWithTotals.find((person) => person.name.toLowerCase() === clean || (person.carnet && person.carnet.toLowerCase() === clean) || (person.phone && person.phone.toLowerCase() === clean)) || null
   }
+
   const incomeLookup = useMemo(() => {
     const byName = findPersonMatch(incomeForm.person)
     const byCarnet = incomeForm.carnet ? findPersonMatch(incomeForm.carnet) : null
@@ -613,6 +667,7 @@ function App() {
       return { ...prev, person: match.name, carnet: match.carnet || prev.carnet, phone: match.phone || prev.phone, [field]: value }
     })
   }
+
   const suggestionsFor = (value: string, options: string[]) => {
     const clean = value.trim().toLowerCase()
     if (!clean) return []
@@ -622,91 +677,169 @@ function App() {
   // ============================================================
   // ACCIONES
   // ============================================================
-  const saveIncome = () => {
+  const saveIncome = async () => {
+    if (!hasPermission(currentUser, 'ingresos_crear')) {
+      alert('No tienes permiso para emitir recibos.')
+      return
+    }
     const cash = Number(incomeForm.cash) || 0
     const qr = Number(incomeForm.qr) || 0
     if (!incomeForm.person.trim() || !incomeForm.concept.trim() || (!cash && !qr)) return
-    
     const concept = incomeForm.concept.trim()
     const personName = incomeForm.person.trim()
     const carnet = incomeForm.carnet.trim()
     const phone = incomeForm.phone.trim()
-    const notes = incomeForm.notes.trim() // <-- Capturamos las notas
-    
-    const next: Payment = { 
-        id: crypto.randomUUID(), 
-        receipt: nextCode('REC', 242 + payments.length), 
-        person: personName, 
-        carnet, 
-        phone, 
-        concept, 
-        notes, // <-- Agregamos las notas al objeto
-        date: todayISO(), 
-        amount: cash + qr, 
-        cash, 
-        qr, 
-        status: 'Aplicado', 
-        issuedBy: loggedUser! 
+    const next: Payment = {
+      id: crypto.randomUUID(),
+      receipt: nextCode('REC', 242 + payments.length),
+      person: personName,
+      carnet,
+      phone,
+      concept,
+      date: todayISO(),
+      amount: cash + qr,
+      cash,
+      qr,
+      status: 'Aplicado',
+      issuedBy: loggedUser!,
     }
-    
+
     setPayments([next, ...payments])
-    
-    if (loggedUser === eventManager && !eventOptions.includes(concept)) {
-        setEventOptions([...eventOptions, concept])
+    if (loggedUser === eventManager && !eventOptions.includes(concept)) setEventOptions([...eventOptions, concept])
+    const existing = people.find((p) => p.name.toLowerCase() === personName.toLowerCase())
+    if (!existing) setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone, notes: '' }])
+    else setPeople(people.map((p) => p.id === existing.id ? { ...p, carnet: carnet && !p.carnet ? carnet : p.carnet, phone: phone && !p.phone ? phone : p.phone } : p))
+
+    try {
+      const { error } = await supabase.from('ingresos').insert({
+        id: next.id,
+        recibo: next.receipt,
+        persona: next.person,
+        carnet: next.carnet,
+        telefono: next.phone,
+        concepto: next.concept,
+        fecha: next.date,
+        monto: next.amount,
+        efectivo: next.cash,
+        qr: next.qr,
+        estado: next.status,
+        emitido_por: next.issuedBy,
+      })
+      if (error) console.error('Error al guardar en Supabase (el SW lo reintentará):', error)
+    } catch (err) {
+      console.log('Sin conexión — la petición se sincronizará al volver la red.')
     }
-    
-    const existing = people.find((person) => person.name.toLowerCase() === personName.toLowerCase())
-    if (!existing) {
-        setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone, notes: '' }])
-    } else {
-        setPeople(people.map((person) => 
-            person.id === existing.id 
-                ? { ...person, carnet: carnet && !person.carnet ? carnet : person.carnet, phone: phone && !person.phone ? phone : person.phone } 
-                : person
-        ))
-    }
-    
+
     setSelectedReceipt(next)
     setShowIncomeModal(false)
     setShowReceipt(true)
-    
-    // Limpieza del formulario (ahora incluye notes)
     setIncomeForm({ person: '', carnet: '', phone: '', concept: '', notes: '', cash: '', qr: '' })
   }
+
   const saveExpense = () => {
+    if (!hasPermission(currentUser, 'egresos_crear')) {
+      alert('No tienes permiso para registrar egresos.')
+      return
+    }
     const cash = Number(expenseForm.cash) || 0
     const qr = Number(expenseForm.qr) || 0
     if (!expenseForm.recipient.trim() || !expenseForm.concept.trim() || (!cash && !qr)) return
     const category = expenseForm.category.trim() || 'Otros'
-    const next: Expense = { id: crypto.randomUUID(), voucher: nextCode('EGR', 33 + expenses.length), concept: expenseForm.concept.trim(), recipient: expenseForm.recipient.trim(), category, date: todayISO(), amount: cash + qr, cash, qr, status: 'Aplicado', issuedBy: loggedUser! }
+    const next: Expense = {
+      id: crypto.randomUUID(),
+      voucher: nextCode('EGR', 33 + expenses.length),
+      concept: expenseForm.concept.trim(),
+      recipient: expenseForm.recipient.trim(),
+      category,
+      date: todayISO(),
+      amount: cash + qr,
+      cash,
+      qr,
+      status: 'Aplicado',
+      issuedBy: loggedUser!,
+    }
     setExpenses([next, ...expenses])
     if (!categoryOptions.includes(category)) setCategoryOptions([...categoryOptions, category])
-    setSelectedVoucher(next); setShowExpenseModal(false); setShowVoucher(true)
+    setSelectedVoucher(next)
+    setShowExpenseModal(false)
+    setShowVoucher(true)
     setExpenseForm({ concept: '', recipient: '', category: '', cash: '', qr: '' })
   }
 
-  const toggleIncomeStatus = (id: string) => setPayments(payments.map((p) => p.id === id ? { ...p, status: p.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : p))
-  const toggleExpenseStatus = (id: string) => setExpenses(expenses.map((e) => e.id === id ? { ...e, status: e.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : e))
+  const toggleIncomeStatus = (id: string) => {
+    if (!hasPermission(currentUser, 'ingresos_anular')) {
+      alert('No tienes permiso para anular recibos.')
+      return
+    }
+    setPayments(payments.map((p) => p.id === id ? { ...p, status: p.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : p))
+  }
+
+  const toggleExpenseStatus = (id: string) => {
+    if (!hasPermission(currentUser, 'egresos_anular')) {
+      alert('No tienes permiso para anular egresos.')
+      return
+    }
+    setExpenses(expenses.map((e) => e.id === id ? { ...e, status: e.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : e))
+  }
+
   const canManage = (owner?: string) => !owner || owner === loggedUser
-  const accountFullName = (name?: string) => (name && accounts.find((account) => account.name === name)?.fullName.trim()) || name || 'Administrador'
-  const saveFullName = () => { if (!loggedUser || !fullNameDraft.trim()) return; setAccounts(accounts.map((account) => account.name === loggedUser ? { ...account, fullName: fullNameDraft.trim() } : account)) }
-  const addEventOption = () => { if (loggedUser !== eventManager) return; const name = newEventName.trim(); if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name]); setNewEventName('') }
-  const removeEventOption = (name: string) => { if (loggedUser !== eventManager) return; setEventOptions(eventOptions.filter((option) => option !== name)) }
-  const setEventPrice = (name: string, value: string) => { if (loggedUser !== eventManager) return; setEventPrices({ ...eventPrices, [name]: Number(value) || 0 }) }
+
+  const saveFullName = () => {
+    if (!loggedUser || !fullNameDraft.trim()) return
+    setAccounts(accounts.map((account) => account.name === loggedUser ? { ...account, fullName: fullNameDraft.trim() } : account))
+  }
+
+  const addEventOption = () => {
+    if (!hasPermission(currentUser, 'eventos_crear')) {
+      alert('No tienes permiso para crear eventos.')
+      return
+    }
+    const name = newEventName.trim()
+    if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name])
+    setNewEventName('')
+  }
+
+  const removeEventOption = (name: string) => {
+    if (!hasPermission(currentUser, 'eventos_eliminar')) {
+      alert('No tienes permiso para eliminar eventos.')
+      return
+    }
+    setEventOptions(eventOptions.filter((option) => option !== name))
+  }
+
+  const setEventPrice = (name: string, value: string) => {
+    if (!hasPermission(currentUser, 'eventos_editar')) {
+      alert('No tienes permiso para editar precios.')
+      return
+    }
+    setEventPrices({ ...eventPrices, [name]: Number(value) || 0 })
+  }
 
   const addPerson = () => {
+    if (!hasPermission(currentUser, 'clientes_crear')) {
+      alert('No tienes permiso para agregar clientes.')
+      return
+    }
     if (!personForm.name.trim()) return
     setPeople([...people, { id: crypto.randomUUID(), name: personForm.name.trim(), carnet: personForm.carnet.trim(), phone: personForm.phone.trim(), notes: personForm.notes.trim() }])
     setPersonForm({ name: '', carnet: '', phone: '', notes: '' })
   }
+
   const removePerson = (id: string) => setPeople(people.filter((person) => person.id !== id))
+
   const startEditPerson = (person: Person) => {
     setEditingPersonId(person.id)
     setPersonEditForm({ name: person.name, carnet: person.carnet, phone: person.phone, notes: person.notes })
     setPersonMessage('')
   }
+
   const closeEditPerson = () => { setEditingPersonId(null); setPersonMessage('') }
+
   const savePersonEdit = () => {
+    if (!hasPermission(currentUser, 'clientes_editar')) {
+      alert('No tienes permiso para editar clientes.')
+      return
+    }
     const target = people.find((person) => person.id === editingPersonId)
     if (!target) return
     const name = personEditForm.name.trim()
@@ -725,11 +858,25 @@ function App() {
     }
     setEditingPersonId(null); setPersonMessage('')
   }
+
   const askRemovePerson = (person: Person) => setPendingDelete(person)
-  const confirmRemovePerson = () => { if (pendingDelete) removePerson(pendingDelete.id); setPendingDelete(null) }
+
+  const confirmRemovePerson = () => {
+    if (!hasPermission(currentUser, 'clientes_eliminar')) {
+      alert('No tienes permiso para eliminar clientes.')
+      return
+    }
+    if (pendingDelete) removePerson(pendingDelete.id)
+    setPendingDelete(null)
+  }
+
   const registerPayer = (name: string, carnet: string, phone: string) => setPeople([...people, { id: crypto.randomUUID(), name, carnet, phone, notes: '' }])
 
   const exportBackup = () => {
+    if (!hasPermission(currentUser, 'reportes_exportar')) {
+      alert('No tienes permiso para exportar datos.')
+      return
+    }
     const header = ['Tipo', 'Codigo', 'Persona/Destinatario', 'Carnet', 'Telefono', 'Concepto', 'Categoria', 'Fecha', 'Monto', 'Efectivo', 'QR', 'Estado', 'Registrado por']
     const rows = [
       header,
@@ -742,11 +889,21 @@ function App() {
     link.href = url; link.download = `sec-car-historial-${todayISO()}.csv`; link.click()
     URL.revokeObjectURL(url)
   }
+
   const clearHistory = () => {
+    if (!hasPermission(currentUser, 'reportes_limpiar')) {
+      alert('No tienes permiso para vaciar el historial.')
+      return
+    }
     if (confirmClear.trim().toUpperCase() !== 'BORRAR') return
-    setPayments([]); setExpenses([]); setConfirmClear('')
+    setPayments([])
+    setExpenses([])
+    setConfirmClear('')
   }
-  // --- REPORTES: filtrar movimientos para el PDF ---
+
+  // ============================================================
+  // REPORTES: FILTRAR Y GENERAR PDF
+  // ============================================================
   const pdfData = useMemo(() => {
     const ingresos = payments
       .filter((p) => p.status === 'Aplicado')
@@ -797,7 +954,6 @@ function App() {
     pdfPersona, pdfConcepto, pdfMontoMin, pdfMontoMax,
   ])
 
-  // --- REPORTES: generar y descargar el PDF ---
   const descargarReportePDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
@@ -843,6 +999,7 @@ function App() {
 
     doc.save(`SEC-CAR-reporte-${todayISO()}.pdf`)
   }
+
   // ============================================================
   // RENDER: PANTALLA DE ACCESO
   // ============================================================
@@ -870,17 +1027,39 @@ function App() {
         </div>
         <div className="side-label">GESTIÓN</div>
         <nav>
-          {navItems.map((item) => (
-            <button key={item} className={activePage === item ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage(item)}>
-              <span className="nav-icon">{item === 'Resumen' ? '▦' : item === 'Ingresos' ? '↗' : item === 'Egresos' ? '↘' : item === 'Eventos' ? '◷' : '♙'}</span>
-              {item}
-            </button>
-          ))}
+          {navItems.map((item) => {
+            const puedeVer =
+              item === 'Resumen' ? true :
+              item === 'Ingresos' ? hasPermission(currentUser, 'ingresos_ver') :
+              item === 'Egresos' ? hasPermission(currentUser, 'egresos_ver') :
+              item === 'Eventos' ? hasPermission(currentUser, 'eventos_ver') :
+              item === 'Clientes' ? hasPermission(currentUser, 'clientes_ver') :
+              false
+
+            if (!puedeVer) return null
+
+            return (
+              <button
+                key={item}
+                className={activePage === item ? 'nav-item active' : 'nav-item'}
+                onClick={() => setActivePage(item)}
+              >
+                <span className="nav-icon">{item === 'Resumen' ? '▦' : item === 'Ingresos' ? '↗' : item === 'Egresos' ? '↘' : item === 'Eventos' ? '◷' : '♙'}</span>
+                {item}
+              </button>
+            )
+          })}
         </nav>
-        <div className="side-label report-label">REPORTES</div>
-        <button className={activePage === 'Reportes' ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage('Reportes')}>
-          <span className="nav-icon">▤</span>Reportes
-        </button>
+
+        {hasPermission(currentUser, 'reportes_ver') && (
+          <>
+            <div className="side-label report-label">REPORTES</div>
+            <button className={activePage === 'Reportes' ? 'nav-item active' : 'nav-item'} onClick={() => setActivePage('Reportes')}>
+              <span className="nav-icon">▤</span>Reportes
+            </button>
+          </>
+        )}
+
         {sessionWarning && (
           <div className="modal-backdrop">
             <div className="modal">
@@ -909,7 +1088,8 @@ function App() {
             </div>
           </div>
         )}
-        {isPrimaryAdmin && (
+
+        {canManageUsers && (
           <>
             <div className="side-label report-label">ADMINISTRACIÓN</div>
             <button className="nav-item" onClick={() => setShowUserManagement(true)}>
@@ -976,8 +1156,16 @@ function App() {
             <section className="hero-row">
               <div><h2>Bienvenido(@), {loggedUser} <span>✦</span></h2><p>Aquí tienes el movimiento de tu centro para hoy.</p></div>
               <div className="hero-actions">
-                <button className="outline-button" onClick={() => setShowExpenseModal(true)}><span>−</span> Nuevo egreso</button>
-                <button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button>
+                {hasPermission(currentUser, 'egresos_crear') && (
+                  <button className="outline-button" onClick={() => setShowExpenseModal(true)}>
+                    <span>−</span> Nuevo egreso
+                  </button>
+                )}
+                {hasPermission(currentUser, 'ingresos_crear') && (
+                  <button className="primary-button" onClick={() => setShowIncomeModal(true)}>
+                    <span>＋</span> Nuevo recibo
+                  </button>
+                )}
               </div>
             </section>
             <section className="stats-grid">
@@ -1023,7 +1211,14 @@ function App() {
 
         {activePage === 'Ingresos' && (
           <section className="panel transactions">
-            <div className="panel-head"><div><h3>Ingresos</h3><p>Todos los recibos emitidos</p></div><button className="primary-button" onClick={() => setShowIncomeModal(true)}><span>＋</span> Nuevo recibo</button></div>
+            <div className="panel-head">
+              <div><h3>Ingresos</h3><p>Todos los recibos emitidos</p></div>
+              {hasPermission(currentUser, 'ingresos_crear') && (
+                <button className="primary-button" onClick={() => setShowIncomeModal(true)}>
+                  <span>＋</span> Nuevo recibo
+                </button>
+              )}
+            </div>
             <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, carnet, teléfono, concepto o recibo..." /></div></div>
             <div className="table-wrap">
               <table>
@@ -1040,7 +1235,15 @@ function App() {
                       <td>{money(payment.amount)}<span className="method">Efectivo {money(payment.cash)} · QR {money(payment.qr)}</span></td>
                       <td>{payment.issuedBy || '—'}</td>
                       <td><span className={payment.status === 'Aplicado' ? 'status' : 'status void'}>{payment.status}</span></td>
-                      <td>{canManage(payment.issuedBy) ? <button className="status-toggle" onClick={() => toggleIncomeStatus(payment.id)}>{payment.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {payment.issuedBy}</span>}</td>
+                      <td>
+                        {hasPermission(currentUser, 'ingresos_anular') && canManage(payment.issuedBy) ? (
+                          <button className="status-toggle" onClick={() => toggleIncomeStatus(payment.id)}>
+                            {payment.status === 'Aplicado' ? 'Anular' : 'Reactivar'}
+                          </button>
+                        ) : (
+                          <span className="owner-lock">Sin permiso</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {filteredPayments.length === 0 && <tr><td className="empty-cell" colSpan={10}>No hay recibos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
@@ -1052,7 +1255,14 @@ function App() {
 
         {activePage === 'Egresos' && (
           <section className="panel transactions">
-            <div className="panel-head"><div><h3>Egresos</h3><p>Todos los pagos y gastos registrados</p></div><button className="primary-button" onClick={() => setShowExpenseModal(true)}><span>＋</span> Nuevo egreso</button></div>
+            <div className="panel-head">
+              <div><h3>Egresos</h3><p>Todos los pagos y gastos registrados</p></div>
+              {hasPermission(currentUser, 'egresos_crear') && (
+                <button className="primary-button" onClick={() => setShowExpenseModal(true)}>
+                  <span>＋</span> Nuevo egreso
+                </button>
+              )}
+            </div>
             <div className="filters"><div className="search"><span>⌕</span><input value={expenseQuery} onChange={(event) => setExpenseQuery(event.target.value)} placeholder="Buscar por destinatario, categoría o comprobante..." /></div></div>
             <div className="table-wrap">
               <table>
@@ -1068,7 +1278,15 @@ function App() {
                       <td>{money(expense.amount)}<span className="method">Efectivo {money(expense.cash)} · QR {money(expense.qr)}</span></td>
                       <td>{expense.issuedBy || '—'}</td>
                       <td><span className={expense.status === 'Aplicado' ? 'status' : 'status void'}>{expense.status}</span></td>
-                      <td>{canManage(expense.issuedBy) ? <button className="status-toggle" onClick={() => toggleExpenseStatus(expense.id)}>{expense.status === 'Aplicado' ? 'Anular' : 'Reactivar'}</button> : <span className="owner-lock">Solo {expense.issuedBy}</span>}</td>
+                      <td>
+                        {hasPermission(currentUser, 'egresos_anular') && canManage(expense.issuedBy) ? (
+                          <button className="status-toggle" onClick={() => toggleExpenseStatus(expense.id)}>
+                            {expense.status === 'Aplicado' ? 'Anular' : 'Reactivar'}
+                          </button>
+                        ) : (
+                          <span className="owner-lock">Sin permiso</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {filteredExpenses.length === 0 && <tr><td className="empty-cell" colSpan={9}>No hay egresos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
@@ -1081,7 +1299,7 @@ function App() {
         {activePage === 'Eventos' && (
           <section className="panel">
             <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Estas sugerencias aparecen al registrar un ingreso; el campo de concepto siempre acepta texto libre.{loggedUser !== eventManager && ' Solo Ovet Zúñiga puede crear, editar el precio o quitar eventos.'}</p></div></div>
-            {loggedUser === eventManager && (
+            {hasPermission(currentUser, 'eventos_crear') && (
               <div className="inline-form">
                 <label>Nuevo evento o concepto<input value={newEventName} onChange={(event) => setNewEventName(event.target.value)} placeholder="Ej. Retiro de varones 2025" /></label>
                 <button className="primary-button" onClick={addEventOption}>Agregar</button>
@@ -1091,11 +1309,16 @@ function App() {
               {eventStats.map((stat) => (
                 <div className="event-detail-card" key={stat.name}>
                   <div className="event-detail-head">
-                    <div><strong>{stat.name}</strong><small>{stat.count} recibos · {money(stat.total)} recaudados</small></div>
-                    {loggedUser === eventManager ? (
+                    <div>
+                      <strong>{stat.name}</strong>
+                      <span className="event-summary">{stat.count} recibos · {money(stat.total)} recaudados</span>
+                    </div>
+                    {hasPermission(currentUser, 'eventos_editar') ? (
                       <>
                         <label className="price-field">Precio del evento (Bs)<input type="number" value={stat.price || ''} onChange={(event) => setEventPrice(stat.name, event.target.value)} placeholder="0.00" /></label>
-                        <button onClick={() => removeEventOption(stat.name)} aria-label={`Quitar ${stat.name}`}>×</button>
+                        {hasPermission(currentUser, 'eventos_eliminar') && (
+                          <button onClick={() => removeEventOption(stat.name)} aria-label={`Quitar ${stat.name}`}>×</button>
+                        )}
                       </>
                     ) : (
                       <span className="price-field">Precio del evento<strong>{stat.price ? money(stat.price) : 'Sin definir'}</strong></span>
@@ -1147,13 +1370,15 @@ function App() {
         {activePage === 'Clientes' && (
           <section className="panel">
             <div className="panel-head"><div><h3>Directorio de clientes</h3><p>Clientes registrados, cuánto han pagado y cuánto deben por evento. Puedes editar su ficha o quitarlos del directorio.</p></div></div>
-            <div className="inline-form">
-              <label>Nombre<input value={personForm.name} onChange={(event) => setPersonForm({ ...personForm, name: event.target.value })} placeholder="Nombre completo" /></label>
-              <label>N.º de carnet<input value={personForm.carnet} onChange={(event) => setPersonForm({ ...personForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
-              <label>Teléfono<input value={personForm.phone} onChange={(event) => setPersonForm({ ...personForm, phone: event.target.value })} placeholder="Opcional" /></label>
-              <label>Notas<input value={personForm.notes} onChange={(event) => setPersonForm({ ...personForm, notes: event.target.value })} placeholder="Opcional" /></label>
-              <button className="primary-button" onClick={addPerson}>Agregar cliente</button>
-            </div>
+            {hasPermission(currentUser, 'clientes_crear') && (
+              <div className="inline-form">
+                <label>Nombre<input value={personForm.name} onChange={(event) => setPersonForm({ ...personForm, name: event.target.value })} placeholder="Nombre completo" /></label>
+                <label>N.º de carnet<input value={personForm.carnet} onChange={(event) => setPersonForm({ ...personForm, carnet: event.target.value })} placeholder="Ej. 7845123" /></label>
+                <label>Teléfono<input value={personForm.phone} onChange={(event) => setPersonForm({ ...personForm, phone: event.target.value })} placeholder="Opcional" /></label>
+                <label>Notas<input value={personForm.notes} onChange={(event) => setPersonForm({ ...personForm, notes: event.target.value })} placeholder="Opcional" /></label>
+                <button className="primary-button" onClick={addPerson}>Agregar cliente</button>
+              </div>
+            )}
             <div className="filters"><div className="search"><span>⌕</span><input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
             <div className="table-wrap">
               <table>
@@ -1168,8 +1393,12 @@ function App() {
                       <td>{person.totalDue > 0 ? <b className="rose-text">{money(person.totalDue)}</b> : <span className="status">Al día</span>}</td>
                       <td>{person.events.length === 0 ? '—' : <div className="event-mini-list">{person.events.map((ev) => <span key={ev.event} className={`status ${ev.standing === 'menos-mitad' ? 'void' : ''}`}>{ev.event}: {ev.price ? `${money(ev.paid)} / ${money(ev.price)}` : money(ev.paid)}</span>)}</div>}</td>
                       <td><div className="row-actions">
-                        <button className="status-toggle" onClick={() => startEditPerson(person)}>Editar</button>
-                        <button className="status-toggle danger" onClick={() => askRemovePerson(person)}>Eliminar</button>
+                        {hasPermission(currentUser, 'clientes_editar') && (
+                          <button className="status-toggle" onClick={() => startEditPerson(person)}>Editar</button>
+                        )}
+                        {hasPermission(currentUser, 'clientes_eliminar') && (
+                          <button className="status-toggle danger" onClick={() => askRemovePerson(person)}>Eliminar</button>
+                        )}
                       </div></td>
                     </tr>
                   ))}
@@ -1290,11 +1519,17 @@ function App() {
             <section className="panel">
               <div className="panel-head"><div><h3>Respaldo y mantenimiento</h3><p>Descarga el historial antes de vaciarlo, para no perder datos antiguos</p></div></div>
               <div className="payment-note">Recomendamos descargar este archivo periódicamente y guardarlo en tu Google Drive (u otro almacenamiento). Así, si en el futuro necesitas liberar espacio, puedes vaciar el historial sin perder los registros antiguos.</div>
-              <div className="inline-form"><button className="outline-button" onClick={exportBackup}>Descargar historial (CSV) <span>↓</span></button></div>
-              <div className="inline-form">
-                <label>Escribe BORRAR para confirmar<input value={confirmClear} onChange={(event) => setConfirmClear(event.target.value)} placeholder="BORRAR" /></label>
-                <button className="danger-button" disabled={confirmClear.trim().toUpperCase() !== 'BORRAR'} onClick={clearHistory}>Vaciar historial de ingresos y egresos</button>
-              </div>
+              {hasPermission(currentUser, 'reportes_exportar') && (
+                <div className="inline-form">
+                  <button className="outline-button" onClick={exportBackup}>Descargar historial (CSV) <span>↓</span></button>
+                </div>
+              )}
+              {hasPermission(currentUser, 'reportes_limpiar') && (
+                <div className="inline-form">
+                  <label>Escribe BORRAR para confirmar<input value={confirmClear} onChange={(event) => setConfirmClear(event.target.value)} placeholder="BORRAR" /></label>
+                  <button className="danger-button" disabled={confirmClear.trim().toUpperCase() !== 'BORRAR'} onClick={clearHistory}>Vaciar historial de ingresos y egresos</button>
+                </div>
+              )}
             </section>
           </>
         )}
@@ -1436,7 +1671,7 @@ function App() {
         </div>
       )}
 
-      {showUserManagement && isPrimaryAdmin && currentUser && (
+      {showUserManagement && canManageUsers && currentUser && (
         <UserManagement
           accounts={accounts}
           currentUserId={currentUser.id}
@@ -1444,6 +1679,7 @@ function App() {
           onClose={() => setShowUserManagement(false)}
         />
       )}
+
     </div>
   )
 }

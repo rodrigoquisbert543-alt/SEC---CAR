@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Variables de entorno con claves secretas
+.env
+.env.local
+.env.*.local
