@@ -56,28 +56,31 @@ export async function flushQueue(): Promise<{ ok: number; fail: number }> {
 
   for (const item of queue) {
     try {
-      let result
+      let result: { error: any } | undefined
+
       if (item.operation === 'insert') {
         result = await supabase.from(item.table).insert(item.payload)
       } else if (item.operation === 'update') {
-        result = await supabase.from(item.table).update(item.payload).eq('id', item.payload.id)
+        // Para eventos, usamos 'nombre' como clave; el resto usa 'id'
+        if (item.table === 'eventos') {
+          result = await supabase.from('eventos').update(item.payload.data).eq('nombre', item.payload.id)
+        } else {
+          result = await supabase.from(item.table).update(item.payload.data).eq('id', item.payload.id)
+        }
       } else if (item.operation === 'delete') {
-        result = await supabase.from(item.table).delete().eq('id', item.payload.id)
-      }
-
-      remaining.push({
-        ...item,
-      })
-      // Si la operación fue exitosa, no la mantenemos en la cola
-      if (!result?.error) {
-        remaining.pop()
+        if (item.table === 'eventos') {
+          result = await supabase.from('eventos').delete().eq('nombre', item.payload.id)
+        } else {
+          result = await supabase.from(item.table).delete().eq('id', item.payload.id)
+        }
       }
 
       if (result?.error) {
-        // Error real (no de red) → descartar para no bloquear la cola
+        // Error de servidor (RLS, columna inexistente, etc.) → descartar
         console.error(`❌ Error en ${item.table}.${item.operation}:`, result.error)
         fail++
       } else {
+        // Operación exitosa → NO se agrega a remaining (se procesó)
         ok++
       }
     } catch (err) {
@@ -89,16 +92,11 @@ export async function flushQueue(): Promise<{ ok: number; fail: number }> {
 
   saveQueue(remaining)
 
-  if (ok > 0) {
-    console.log(`✅ ${ok} operaciones sincronizadas correctamente`)
-  }
-  if (remaining.length > 0) {
-    console.log(`⏳ ${remaining.length} operaciones siguen pendientes`)
-  }
+  if (ok > 0) console.log(`✅ ${ok} operaciones sincronizadas correctamente`)
+  if (remaining.length > 0) console.log(`⏳ ${remaining.length} operaciones siguen pendientes`)
 
   return { ok, fail }
 }
-
 // ============================================================
 // ESTADO DE LA COLA
 // ============================================================

@@ -36,13 +36,15 @@ export async function loadFromSupabase(): Promise<SyncData | null> {
 // ============================================================
 // FUSIONAR DATOS LOCALES CON SUPABASE
 // Regla: Gana el que tenga updated_at más reciente.
-// Si el local no existe en Supabase, se marca para subir.
+// Respeta cambios locales recientes (menos de 60s).
 // ============================================================
 export function fusionarDatos(local: any[], remoto: any[]): {
   fusionados: any[]
   paraSubir: any[]
 } {
   const mapa = new Map<string, any>()
+  const ahora = Date.now()
+  const VENTANA_RESPETO_MS = 60 * 1000   // 60 segundos
 
   // 1. Meter primero todos los remotos (Supabase es la base)
   remoto.forEach((r) => mapa.set(r.id, { ...r, _origen: 'remoto' }))
@@ -62,19 +64,26 @@ export function fusionarDatos(local: any[], remoto: any[]): {
     // Comparar fechas de modificación
     const fechaLocal = l.updated_at ? new Date(l.updated_at).getTime() : 0
     const fechaRemota = existente.updated_at ? new Date(existente.updated_at).getTime() : 0
+    const antiguedadLocal = ahora - fechaLocal
+
+    // 🔒 Si el local fue modificado hace menos de 60s, respetarlo
+    if (antiguedadLocal < VENTANA_RESPETO_MS) {
+      mapa.set(l.id, { ...l, _origen: 'local' })
+      paraSubir.push(l)
+      return
+    }
 
     if (fechaLocal > fechaRemota) {
       // El local es más reciente → reemplazar
       mapa.set(l.id, { ...l, _origen: 'local' })
       paraSubir.push(l)
     }
-    // Si el remoto es más reciente, se queda el remoto (ya está en el mapa)
+    // Si el remoto es más reciente, se queda el remoto
   })
 
   const fusionados = Array.from(mapa.values()).map(({ _origen, ...resto }) => resto)
   return { fusionados, paraSubir }
 }
-
 // ============================================================
 // CONVERTIR REGISTROS DE SUPABASE AL FORMATO LOCAL
 // ============================================================

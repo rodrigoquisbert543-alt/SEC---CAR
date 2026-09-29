@@ -1,4 +1,5 @@
 ﻿import { loadFromSupabase, fusionarDatos, supabaseAFormatoLocal, localAFormatoSupabase, startLiveSync, } from './utils/liveSync'
+import { startRealtimeSync } from './utils/realtime'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import type { Account, Permission } from './types'
@@ -373,6 +374,77 @@ function App() {
     }
   }, [])
   // ============================================================
+  // REALTIME: Actualizaciones instantáneas desde Supabase
+  // ============================================================
+  useEffect(() => {
+    if (!loggedUser) return
+
+    const stop = startRealtimeSync({
+      onIngresoChange: (payload, eventType) => {
+        if (eventType === 'INSERT') {
+          const nuevo = supabaseAFormatoLocal('ingresos', payload.new)
+          setPayments((prev) => {
+            // Evitar duplicados: si ya existe (porque lo subimos nosotros), ignorar
+            if (prev.some((p) => p.id === nuevo.id)) return prev
+            return [nuevo, ...prev]
+          })
+        } 
+        else if (eventType === 'UPDATE') {
+          const actualizado = supabaseAFormatoLocal('ingresos', payload.new)
+          setPayments((prev) =>
+            prev.map((p) => p.id === actualizado.id ? { ...p, ...actualizado } : p)
+          )
+        } 
+        else if (eventType === 'DELETE') {
+          const idEliminado = payload.old.id
+          setPayments((prev) => prev.filter((p) => p.id !== idEliminado))
+        }
+      },
+
+      onEgresoChange: (payload, eventType) => {
+        if (eventType === 'INSERT') {
+          const nuevo = supabaseAFormatoLocal('egresos', payload.new)
+          setExpenses((prev) => {
+            if (prev.some((e) => e.id === nuevo.id)) return prev
+            return [nuevo, ...prev]
+          })
+        } 
+        else if (eventType === 'UPDATE') {
+          const actualizado = supabaseAFormatoLocal('egresos', payload.new)
+          setExpenses((prev) =>
+            prev.map((e) => e.id === actualizado.id ? { ...e, ...actualizado } : e)
+          )
+        } 
+        else if (eventType === 'DELETE') {
+          const idEliminado = payload.old.id
+          setExpenses((prev) => prev.filter((e) => e.id !== idEliminado))
+        }
+      },
+
+      onEventoChange: (payload, eventType) => {
+        if (eventType === 'INSERT') {
+          const nombre = payload.new.nombre
+          setEventOptions((prev) => prev.includes(nombre) ? prev : [...prev, nombre])
+          setEventPrices((prev) => ({ ...prev, [nombre]: payload.new.precio || 0 }))
+        } 
+        else if (eventType === 'UPDATE') {
+          const nombre = payload.new.nombre
+          setEventPrices((prev) => ({ ...prev, [nombre]: payload.new.precio || 0 }))
+        } 
+        else if (eventType === 'DELETE') {
+          const nombre = payload.old.nombre
+          setEventOptions((prev) => prev.filter((n) => n !== nombre))
+          setEventPrices((prev) => {
+            const { [nombre]: _, ...resto } = prev
+            return resto
+          })
+        }
+      },
+    })
+
+    return stop
+  }, [loggedUser])
+  // ============================================================
   // FUSIÓN INICIAL CON SUPABASE (al iniciar sesión)
   // ============================================================
   useEffect(() => {
@@ -421,26 +493,6 @@ function App() {
 
     fusionarConSupabase()
   }, [loggedUser])
-  // ============================================================
-  // SINCRONIZACIÓN EN VIVO (cada 15 segundos)
-  // ============================================================
-    useEffect(() => {
-      if (!loggedUser) return
-
-      const stop = startLiveSync(15 * 1000, (data) => {
-        const ingresosRemotos = data.ingresos.map((r) => supabaseAFormatoLocal('ingresos', r))
-        const egresosRemotos = data.egresos.map((r) => supabaseAFormatoLocal('egresos', r))
-
-        // Fusionar en vivo (sin encolar, solo mostrar)
-        const { fusionados: ingresosFusionados } = fusionarDatos(payments, ingresosRemotos)
-        const { fusionados: egresosFusionados } = fusionarDatos(expenses, egresosRemotos)
-
-        setPayments(ingresosFusionados as Payment[])
-        setExpenses(egresosFusionados as Expense[])
-      })
-
-      return stop
-    }, [loggedUser])
     // ============================================================
     // CARGAR EVENTOS DESDE SUPABASE AL INICIAR
     // ============================================================
@@ -921,17 +973,79 @@ function App() {
       alert('No tienes permiso para anular recibos.')
       return
     }
-    setPayments(payments.map((p) => p.id === id ? { ...p, status: p.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : p))
-  }
+    const nuevoEstado = payments.find((p) => p.id === id)?.status === 'Aplicado' ? 'Anulado' : 'Aplicado'
+    const ahora = new Date().toISOString()
 
+    // Actualizar local
+    setPayments(payments.map((p) => 
+      p.id === id ? { ...p, status: nuevoEstado, updated_at: ahora } : p
+    ))
+
+    // Enviar a Supabase
+    ;(async () => {
+      try {
+        const { error } = await supabase
+          .from('ingresos')
+          .update({ estado: nuevoEstado, updated_at: ahora })
+          .eq('id', id)
+        if (error) {
+          console.warn('⚠️ Error al anular. Se encola:', error.message)
+          enqueue({ 
+            table: 'ingresos', 
+            operation: 'update', 
+            payload: { id, data: { estado: nuevoEstado, updated_at: ahora } } 
+          })
+        } else {
+          console.log('✅ Estado actualizado en Supabase:', id)
+        }
+      } catch {
+        console.log('📡 Sin conexión. Se encola actualización.')
+        enqueue({ 
+          table: 'ingresos', 
+          operation: 'update', 
+          payload: { id, data: { estado: nuevoEstado, updated_at: ahora } } 
+        })
+      }
+    })()
+  }
   const toggleExpenseStatus = (id: string) => {
     if (!hasPermission(currentUser, 'egresos_anular')) {
       alert('No tienes permiso para anular egresos.')
       return
     }
-    setExpenses(expenses.map((e) => e.id === id ? { ...e, status: e.status === 'Aplicado' ? 'Anulado' : 'Aplicado' } : e))
-  }
+    const nuevoEstado = expenses.find((e) => e.id === id)?.status === 'Aplicado' ? 'Anulado' : 'Aplicado'
+    const ahora = new Date().toISOString()
 
+    setExpenses(expenses.map((e) => 
+      e.id === id ? { ...e, status: nuevoEstado, updated_at: ahora } : e
+    ))
+
+    ;(async () => {
+      try {
+        const { error } = await supabase
+          .from('egresos')
+          .update({ estado: nuevoEstado, updated_at: ahora })
+          .eq('id', id)
+        if (error) {
+          console.warn('⚠️ Error al anular egreso. Se encola:', error.message)
+          enqueue({ 
+            table: 'egresos', 
+            operation: 'update', 
+            payload: { id, data: { estado: nuevoEstado, updated_at: ahora } } 
+          })
+        } else {
+          console.log('✅ Estado de egreso actualizado en Supabase:', id)
+        }
+      } catch {
+        console.log('📡 Sin conexión. Se encola actualización.')
+        enqueue({ 
+          table: 'egresos', 
+          operation: 'update', 
+          payload: { id, data: { estado: nuevoEstado, updated_at: ahora } } 
+        })
+      }
+    })()
+  }
   const canManage = (owner?: string) => !owner || owner === loggedUser
 
   const saveFullName = () => {
