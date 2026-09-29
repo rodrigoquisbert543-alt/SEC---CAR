@@ -361,6 +361,10 @@ function App() {
   ;
   useEffect(() => { saveAccounts(accounts) }, [accounts])
 
+    // Arrancar el listener de sincronización
+  useEffect(() => {
+    startSyncListener()
+  }, [])
   // ============================================================
   // VERIFICAR PERMISOS EN TIEMPO REAL
   // ============================================================
@@ -745,7 +749,7 @@ function App() {
       setIncomeForm({ person: '', carnet: '', phone: '', concept: '', notes: '', cash: '', qr: '' })
     }
 
-  const saveExpense = () => {
+  const saveExpense = async () => {
     if (!hasPermission(currentUser, 'egresos_crear')) {
       alert('No tienes permiso para registrar egresos.')
       return
@@ -769,6 +773,32 @@ function App() {
     }
     setExpenses([next, ...expenses])
     if (!categoryOptions.includes(category)) setCategoryOptions([...categoryOptions, category])
+    //sincronizar con Supabase
+    const payload = {
+      id: next.id,
+      voucher: next.voucher,
+      concept: next.concept,
+      recipient: next.recipient,
+      category: next.category,
+      date: next.date,
+      amount: next.amount,
+      cash: next.cash,
+      qr: next.qr,
+      status: next.status,
+      issued_by: next.issuedBy,
+    }
+    try {
+      const { error } = await supabase.from('egresos').insert(payload)
+      if (error) {
+        console.warn('⚠️ Error al subir a Supabase. Se encola para reintentar:', error.message)
+        enqueue({ table: 'egresos', operation: 'insert', payload })
+      } else {
+        console.log('✅ Egreso guardado en Supabase:', next.voucher)
+      }
+    } catch {
+      console.log('📡 Sin conexión. El egreso se subirá al recuperar la red:', next.voucher)
+      enqueue({ table: 'egresos', operation: 'insert', payload })
+    }
     setSelectedVoucher(next)
     setShowExpenseModal(false)
     setShowVoucher(true)
