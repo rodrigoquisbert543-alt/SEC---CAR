@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { loadFromSupabase, fusionarDatos, supabaseAFormatoLocal, localAFormatoSupabase, startLiveSync, } from './utils/liveSync'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import type { Account, Permission } from './types'
 import { supabase } from './utils/supabase'
@@ -9,7 +10,6 @@ import './App.css'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { loadAccounts, saveAccounts, seedIfEmpty, migratePermissions } from './utils/storage'
-
 // ============================================================
 // CONSTANTES GENERALES
 // ============================================================
@@ -315,8 +315,8 @@ const nextCode = (prefix: string, count: number) => `${prefix}-${String(count).p
 // ============================================================
 // TIPOS DE DATOS
 // ============================================================
-type Payment = { id: string; receipt: string; person: string; carnet: string; phone: string; concept: string; notes?: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: string }
-type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: string }
+type Payment = { id: string; receipt: string; person: string; carnet: string; phone: string; concept: string; notes?: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: string;updated_at?: string }
+type Expense = { id: string; voucher: string; concept: string; recipient: string; category: string; date: string; amount: number; cash: number; qr: number; status: 'Aplicado' | 'Anulado'; issuedBy: string; updated_at?: string }
 type Person = { id: string; name: string; carnet: string; phone: string; notes: string }
 
 type PaymentStanding = 'completo' | 'mitad' | 'menos-mitad' | 'sin-precio'
@@ -373,27 +373,96 @@ function App() {
     }
   }, [])
   // ============================================================
-  // VERIFICAR PERMISOS EN TIEMPO REAL
+  // FUSIÓN INICIAL CON SUPABASE (al iniciar sesión)
   // ============================================================
   useEffect(() => {
     if (!loggedUser) return
 
-    const currentAccount = accounts.find((a) => a.name === loggedUser)
+    const fusionarConSupabase = async () => {
+      const data = await loadFromSupabase()
+      if (!data) return
 
-    if (!currentAccount) {
-      setLoggedUser(null)
-      setActivePage('Resumen')
-      alert('Tu cuenta fue eliminada por el administrador.')
-      return
+      // Convertir los registros de Supabase al formato local
+      const ingresosRemotos = data.ingresos.map((r) => supabaseAFormatoLocal('ingresos', r))
+      const egresosRemotos = data.egresos.map((r) => supabaseAFormatoLocal('egresos', r))
+
+      // Fusionar con lo local
+      const { fusionados: ingresosFusionados, paraSubir: ingresosParaSubir } = fusionarDatos(payments, ingresosRemotos)
+      const { fusionados: egresosFusionados, paraSubir: egresosParaSubir } = fusionarDatos(expenses, egresosRemotos)
+
+      // Actualizar el estado local
+      setPayments(ingresosFusionados as Payment[])
+      setExpenses(egresosFusionados as Expense[])
+
+      // Encolar lo que esté más actualizado localmente
+      if (ingresosParaSubir.length > 0) {
+        for (const p of ingresosParaSubir) {
+          enqueue({
+            table: 'ingresos',
+            operation: 'insert',
+            payload: localAFormatoSupabase('ingresos', p),
+          })
+        }
+      }
+      if (egresosParaSubir.length > 0) {
+        for (const e of egresosParaSubir) {
+          enqueue({
+            table: 'egresos',
+            operation: 'insert',
+            payload: localAFormatoSupabase('egresos', e),
+          })
+        }
+      }
+
+      console.log(
+        `🔄 Fusión completa: ${ingresosFusionados.length} ingresos, ${egresosFusionados.length} egresos`
+      )
     }
 
-    if (!currentAccount.active) {
-      setLoggedUser(null)
-      setActivePage('Resumen')
-      alert('Tu cuenta fue desactivada por el administrador.')
-      return
-    }
-  }, [accounts, loggedUser])
+    fusionarConSupabase()
+  }, [loggedUser])
+  // ============================================================
+  // SINCRONIZACIÓN EN VIVO (cada 15 segundos)
+  // ============================================================
+  useEffect(() => {
+    if (!loggedUser) return
+
+    const stop = startLiveSync(15 * 1000, (data) => {
+      const ingresosRemotos = data.ingresos.map((r) => supabaseAFormatoLocal('ingresos', r))
+      const egresosRemotos = data.egresos.map((r) => supabaseAFormatoLocal('egresos', r))
+
+      // Fusionar en vivo (sin encolar, solo mostrar)
+      const { fusionados: ingresosFusionados } = fusionarDatos(payments, ingresosRemotos)
+      const { fusionados: egresosFusionados } = fusionarDatos(expenses, egresosRemotos)
+
+      setPayments(ingresosFusionados as Payment[])
+      setExpenses(egresosFusionados as Expense[])
+    })
+
+    return stop
+  }, [loggedUser])
+    // ============================================================
+    // VERIFICAR PERMISOS EN TIEMPO REAL
+    // ============================================================
+    useEffect(() => {
+      if (!loggedUser) return
+
+      const currentAccount = accounts.find((a) => a.name === loggedUser)
+
+      if (!currentAccount) {
+        setLoggedUser(null)
+        setActivePage('Resumen')
+        alert('Tu cuenta fue eliminada por el administrador.')
+        return
+      }
+
+      if (!currentAccount.active) {
+        setLoggedUser(null)
+        setActivePage('Resumen')
+        alert('Tu cuenta fue desactivada por el administrador.')
+        return
+      }
+    }, [accounts, loggedUser])
 
   // ============================================================
   // CIERRE AUTOMÁTICO DE SESIÓN POR INACTIVIDAD
@@ -714,6 +783,7 @@ function App() {
       qr,
       status: 'Aplicado',
       issuedBy: loggedUser!,
+      updated_at: new Date().toISOString(),
     }
 
     setPayments([next, ...payments])
@@ -736,6 +806,7 @@ function App() {
         qr: next.qr,
         estado: next.status,
         emitido_por: next.issuedBy,
+        updated_at: next.updated_at,
       }
 
       try {
@@ -793,6 +864,7 @@ function App() {
       qr: next.qr,
       status: next.status,
       issued_by: next.issuedBy,
+      updated_at: next.updated_at,
     }
     try {
       const { error } = await supabase.from('egresos').insert(payload)
