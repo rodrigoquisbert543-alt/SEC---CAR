@@ -703,7 +703,7 @@ function App() {
     const phone = incomeForm.phone.trim()
     const next: Payment = {
       id: crypto.randomUUID(),
-      receipt: nextCode('REC', 242 + payments.length),
+      receipt: nextCode('REC', 1 + payments.length),
       person: personName,
       carnet,
       phone,
@@ -767,7 +767,7 @@ function App() {
     const category = expenseForm.category.trim() || 'Otros'
     const next: Expense = {
       id: crypto.randomUUID(),
-      voucher: nextCode('EGR', 33 + expenses.length),
+      voucher: nextCode('EGR', 1 + expenses.length),
       concept: expenseForm.concept.trim(),
       recipient: expenseForm.recipient.trim(),
       category,
