@@ -959,23 +959,23 @@ function App() {
       precio: 0,
       updated_at: new Date().toISOString(),
     }
-
-    supabase.from('eventos').insert(payload)
-      .then(({ error }) => {
+    ;(async () => {
+      try {
+        const { error } = await supabase.from('eventos').insert(payload)
         if (error) {
           console.warn('⚠️ Error al subir evento. Se encola:', error.message)
           enqueue({ table: 'eventos', operation: 'insert', payload })
         } else {
           console.log('✅ Evento subido a Supabase:', name)
         }
-      })
-      .catch(() => {
+      } catch {
         console.log('📡 Sin conexión. Se encola evento:', name)
         enqueue({ table: 'eventos', operation: 'insert', payload })
-      })
-
+      }
+    })()
     setNewEventName('')
-  }
+    }
+
   const removeEventOption = (name: string) => {
     if (!hasPermission(currentUser, 'eventos_eliminar')) {
       alert('No tienes permiso para eliminar eventos.')
@@ -984,17 +984,18 @@ function App() {
     setEventOptions(eventOptions.filter((option) => option !== name))
 
     // Eliminar de Supabase
-    supabase.from('eventos').delete().eq('nombre', name)
-      .then(({ error }) => {
-        if (error) {
-          console.warn('⚠️ Error al eliminar evento en Supabase:', error.message)
-        } else {
-          console.log('✅ Evento eliminado de Supabase:', name)
+      ;(async () => {
+        try {
+          const { error } = await supabase.from('eventos').delete().eq('nombre', name)
+          if (error) {
+            console.warn('⚠️ Error al eliminar evento en Supabase:', error.message)
+          } else {
+            console.log('✅ Evento eliminado de Supabase:', name)
+          }
+        } catch {
+          console.log('📡 Sin conexión. No se pudo eliminar evento de Supabase.')
         }
-      })
-      .catch(() => {
-        console.log('📡 Sin conexión. No se pudo eliminar evento de Supabase.')
-      })
+      })()
   }
   const setEventPrice = (name: string, value: string) => {
     if (!hasPermission(currentUser, 'eventos_editar')) {
@@ -1005,27 +1006,28 @@ function App() {
     setEventPrices({ ...eventPrices, [name]: precio })
 
     // Actualizar precio en Supabase
-    supabase.from('eventos').update({ precio, updated_at: new Date().toISOString() }).eq('nombre', name)
-      .then(({ error }) => {
-        if (error) {
-          console.warn('⚠️ Error al actualizar precio. Se encola:', error.message)
+      ;(async () => {
+        try {
+          const { error } = await supabase.from('eventos').update({ precio, updated_at: new Date().toISOString() }).eq('nombre', name)
+          if (error) {
+            console.warn('⚠️ Error al actualizar precio. Se encola:', error.message)
+            enqueue({ 
+              table: 'eventos', 
+              operation: 'update', 
+              payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } 
+            })
+          } else {
+            console.log('✅ Precio actualizado en Supabase:', name, precio)
+          }
+        } catch {
+          console.log('📡 Sin conexión. Se encola actualización de precio.')
           enqueue({ 
             table: 'eventos', 
             operation: 'update', 
             payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } 
           })
-        } else {
-          console.log('✅ Precio actualizado en Supabase:', name, precio)
         }
-      })
-      .catch(() => {
-        console.log('📡 Sin conexión. Se encola actualización de precio.')
-        enqueue({ 
-          table: 'eventos', 
-          operation: 'update', 
-          payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } 
-        })
-      })
+      })()
   }
   const addPerson = () => {
     if (!hasPermission(currentUser, 'clientes_crear')) {
