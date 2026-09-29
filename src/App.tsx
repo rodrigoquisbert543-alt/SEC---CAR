@@ -2,6 +2,7 @@
 import html2canvas from 'html2canvas'
 import type { Account, Permission } from './types'
 import { supabase } from './utils/supabase'
+import { enqueue, startSyncListener, getQueueLength } from './utils/syncQueue'
 import UserManagement from './components/UserManagement'
 import { fileToAvatar } from './utils/image'
 import './App.css'
@@ -355,7 +356,7 @@ function App() {
   const [pdfMontoMax, setPdfMontoMax] = useState('')
 
   const [accounts, setAccounts] = useState<Account[]>(() =>
-    migratePermissions(loadAccounts())
+    migratePermissions(seedIfEmpty(loadAccounts())
   )
   
   useEffect(() => { saveAccounts(accounts) }, [accounts])
@@ -710,8 +711,8 @@ function App() {
     if (!existing) setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone, notes: '' }])
     else setPeople(people.map((p) => p.id === existing.id ? { ...p, carnet: carnet && !p.carnet ? carnet : p.carnet, phone: phone && !p.phone ? phone : p.phone } : p))
 
-    try {
-      const { error } = await supabase.from('ingresos').insert({
+    // 2) Guardar en Supabase (o encolar si falla)
+    const payload = {
         id: next.id,
         recibo: next.receipt,
         persona: next.person,
@@ -724,17 +725,25 @@ function App() {
         qr: next.qr,
         estado: next.status,
         emitido_por: next.issuedBy,
-      })
-      if (error) console.error('Error al guardar en Supabase (el SW lo reintentará):', error)
-    } catch (err) {
-      console.log('Sin conexión — la petición se sincronizará al volver la red.')
-    }
+      }
 
-    setSelectedReceipt(next)
-    setShowIncomeModal(false)
-    setShowReceipt(true)
-    setIncomeForm({ person: '', carnet: '', phone: '', concept: '', notes: '', cash: '', qr: '' })
-  }
+      try {
+        const { error } = await supabase.from('ingresos').insert(payload)
+        if (error) {
+          console.warn('⚠️ Error al subir a Supabase. Se encola para reintentar:', error.message)
+          enqueue({ table: 'ingresos', operation: 'insert', payload })
+        } else {
+          console.log('✅ Ingreso guardado en Supabase:', next.receipt)
+        }
+      } catch {
+        console.log('📡 Sin conexión. El ingreso se subirá al recuperar la red:', next.receipt)
+        enqueue({ table: 'ingresos', operation: 'insert', payload })
+      }    
+      setSelectedReceipt(next)
+      setShowIncomeModal(false)
+      setShowReceipt(true)
+      setIncomeForm({ person: '', carnet: '', phone: '', concept: '', notes: '', cash: '', qr: '' })
+    }
 
   const saveExpense = () => {
     if (!hasPermission(currentUser, 'egresos_crear')) {
