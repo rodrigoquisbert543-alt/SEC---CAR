@@ -2,7 +2,7 @@
 import html2canvas from 'html2canvas'
 import type { Account, Permission } from './types'
 import { supabase } from './utils/supabase'
-import { enqueue, startSyncListener, getQueueLength } from './utils/syncQueue'
+import { enqueue, startSyncListener, getQueueLength, flushQueue } from './utils/syncQueue'
 import UserManagement from './components/UserManagement'
 import { fileToAvatar } from './utils/image'
 import './App.css'
@@ -364,6 +364,13 @@ function App() {
     // Arrancar el listener de sincronización
   useEffect(() => {
     startSyncListener()
+
+    //llamada explicita para que el compilador incluya flush   
+    if (navigator.onLine) {
+      flushQueue().catch((error) => {
+        console.warn('⚠️ Error al vaciar la cola de sincronización:', error.message)
+      })
+    }
   }, [])
   // ============================================================
   // VERIFICAR PERMISOS EN TIEMPO REAL
