@@ -357,8 +357,8 @@ function App() {
 
   const [accounts, setAccounts] = useState<Account[]>(() =>
     migratePermissions(seedIfEmpty(loadAccounts())
-  )
-  
+  ))
+  ;
   useEffect(() => { saveAccounts(accounts) }, [accounts])
 
   // ============================================================
