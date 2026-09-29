@@ -424,23 +424,54 @@ function App() {
   // ============================================================
   // SINCRONIZACIÓN EN VIVO (cada 15 segundos)
   // ============================================================
-  useEffect(() => {
-    if (!loggedUser) return
+    useEffect(() => {
+      if (!loggedUser) return
 
-    const stop = startLiveSync(15 * 1000, (data) => {
-      const ingresosRemotos = data.ingresos.map((r) => supabaseAFormatoLocal('ingresos', r))
-      const egresosRemotos = data.egresos.map((r) => supabaseAFormatoLocal('egresos', r))
+      const stop = startLiveSync(15 * 1000, (data) => {
+        const ingresosRemotos = data.ingresos.map((r) => supabaseAFormatoLocal('ingresos', r))
+        const egresosRemotos = data.egresos.map((r) => supabaseAFormatoLocal('egresos', r))
 
-      // Fusionar en vivo (sin encolar, solo mostrar)
-      const { fusionados: ingresosFusionados } = fusionarDatos(payments, ingresosRemotos)
-      const { fusionados: egresosFusionados } = fusionarDatos(expenses, egresosRemotos)
+        // Fusionar en vivo (sin encolar, solo mostrar)
+        const { fusionados: ingresosFusionados } = fusionarDatos(payments, ingresosRemotos)
+        const { fusionados: egresosFusionados } = fusionarDatos(expenses, egresosRemotos)
 
-      setPayments(ingresosFusionados as Payment[])
-      setExpenses(egresosFusionados as Expense[])
-    })
+        setPayments(ingresosFusionados as Payment[])
+        setExpenses(egresosFusionados as Expense[])
+      })
 
-    return stop
-  }, [loggedUser])
+      return stop
+    }, [loggedUser])
+    // ============================================================
+    // CARGAR EVENTOS DESDE SUPABASE AL INICIAR
+    // ============================================================
+    useEffect(() => {
+      if (!loggedUser) return
+
+      const cargarEventos = async () => {
+        try {
+          const { data, error } = await supabase.from('eventos').select('*').order('nombre')
+          if (error || !data) return
+
+          const nombres = data.map((e: any) => e.nombre)
+          const precios: Record<string, number> = {}
+          data.forEach((e: any) => {
+            precios[e.nombre] = e.precio || 0
+          })
+
+          setEventOptions(nombres)
+          setEventPrices(precios)
+          console.log(`✅ ${nombres.length} eventos cargados desde Supabase`)
+        } catch {
+          console.log('📡 Sin conexión. Usando eventos locales.')
+        }
+      }
+
+      cargarEventos()
+
+      // Refrescar cada 15 segundos (sync en vivo)
+      const interval = setInterval(cargarEventos, 15000)
+      return () => clearInterval(interval)
+    }, [loggedUser])
     // ============================================================
     // VERIFICAR PERMISOS EN TIEMPO REAL
     // ============================================================
@@ -913,26 +944,89 @@ function App() {
       return
     }
     const name = newEventName.trim()
-    if (name && !eventOptions.includes(name)) setEventOptions([...eventOptions, name])
+    if (!name || eventOptions.includes(name)) {
+      setNewEventName('')
+      return
+    }
+
+    // Guardar localmente
+    setEventOptions([...eventOptions, name])
+
+    // Sincronizar con Supabase (con cola)
+    const payload = {
+      id: crypto.randomUUID(),
+      nombre: name,
+      precio: 0,
+      updated_at: new Date().toISOString(),
+    }
+
+    supabase.from('eventos').insert(payload)
+      .then(({ error }) => {
+        if (error) {
+          console.warn('⚠️ Error al subir evento. Se encola:', error.message)
+          enqueue({ table: 'eventos', operation: 'insert', payload })
+        } else {
+          console.log('✅ Evento subido a Supabase:', name)
+        }
+      })
+      .catch(() => {
+        console.log('📡 Sin conexión. Se encola evento:', name)
+        enqueue({ table: 'eventos', operation: 'insert', payload })
+      })
+
     setNewEventName('')
   }
-
   const removeEventOption = (name: string) => {
     if (!hasPermission(currentUser, 'eventos_eliminar')) {
       alert('No tienes permiso para eliminar eventos.')
       return
     }
     setEventOptions(eventOptions.filter((option) => option !== name))
-  }
 
+    // Eliminar de Supabase
+    supabase.from('eventos').delete().eq('nombre', name)
+      .then(({ error }) => {
+        if (error) {
+          console.warn('⚠️ Error al eliminar evento en Supabase:', error.message)
+        } else {
+          console.log('✅ Evento eliminado de Supabase:', name)
+        }
+      })
+      .catch(() => {
+        console.log('📡 Sin conexión. No se pudo eliminar evento de Supabase.')
+      })
+  }
   const setEventPrice = (name: string, value: string) => {
     if (!hasPermission(currentUser, 'eventos_editar')) {
       alert('No tienes permiso para editar precios.')
       return
     }
-    setEventPrices({ ...eventPrices, [name]: Number(value) || 0 })
-  }
+    const precio = Number(value) || 0
+    setEventPrices({ ...eventPrices, [name]: precio })
 
+    // Actualizar precio en Supabase
+    supabase.from('eventos').update({ precio, updated_at: new Date().toISOString() }).eq('nombre', name)
+      .then(({ error }) => {
+        if (error) {
+          console.warn('⚠️ Error al actualizar precio. Se encola:', error.message)
+          enqueue({ 
+            table: 'eventos', 
+            operation: 'update', 
+            payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } 
+          })
+        } else {
+          console.log('✅ Precio actualizado en Supabase:', name, precio)
+        }
+      })
+      .catch(() => {
+        console.log('📡 Sin conexión. Se encola actualización de precio.')
+        enqueue({ 
+          table: 'eventos', 
+          operation: 'update', 
+          payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } 
+        })
+      })
+  }
   const addPerson = () => {
     if (!hasPermission(currentUser, 'clientes_crear')) {
       alert('No tienes permiso para agregar clientes.')

@@ -2,12 +2,11 @@ import { supabase } from './supabase'
 
 type QueueItem = {
   id: string
-  table: 'ingresos' | 'egresos'
+  table: 'ingresos' | 'egresos' | 'eventos'
   operation: 'insert' | 'update' | 'delete'
   payload: any
   timestamp: number
 }
-
 const QUEUE_KEY = 'sec-car-sync-queue'
 
 // ============================================================
@@ -61,9 +60,17 @@ export async function flushQueue(): Promise<{ ok: number; fail: number }> {
       if (item.operation === 'insert') {
         result = await supabase.from(item.table).insert(item.payload)
       } else if (item.operation === 'update') {
-        result = await supabase.from(item.table).update(item.payload.data).eq('id', item.payload.id)
+        result = await supabase.from(item.table).update(item.payload).eq('id', item.payload.id)
       } else if (item.operation === 'delete') {
         result = await supabase.from(item.table).delete().eq('id', item.payload.id)
+      }
+
+      remaining.push({
+        ...item,
+      })
+      // Si la operación fue exitosa, no la mantenemos en la cola
+      if (!result?.error) {
+        remaining.pop()
       }
 
       if (result?.error) {
