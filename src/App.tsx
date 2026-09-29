@@ -883,19 +883,20 @@ function App() {
     setExpenses([next, ...expenses])
     if (!categoryOptions.includes(category)) setCategoryOptions([...categoryOptions, category])
     //sincronizar con Supabase
+        //sincronizar con Supabase
     const payload = {
       id: next.id,
-      voucher: next.voucher,
-      concept: next.concept,
-      recipient: next.recipient,
-      category: next.category,
-      date: next.date,
-      amount: next.amount,
-      cash: next.cash,
+      comprobante: next.voucher,
+      destinatario: next.recipient,
+      concepto: next.concept,
+      categoria: next.category,
+      fecha: next.date,
+      monto: next.amount,
+      efectivo: next.cash,
       qr: next.qr,
-      status: next.status,
-      issued_by: next.issuedBy,
-      updated_at: next.updated_at,
+      estado: next.status,
+      emitido_por: next.issuedBy,
+      updated_at: next.updated_at || new Date().toISOString(),
     }
     try {
       const { error } = await supabase.from('egresos').insert(payload)
