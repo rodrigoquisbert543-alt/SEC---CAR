@@ -436,13 +436,22 @@ function App() {
           }
 
           // CUENTAS
+          // CUENTAS
           const { data: cuentasData } = await supabase.from('cuentas').select('*').order('nombre')
           if (cuentasData && cuentasData.length > 0) {
-            const cuentasLocales = cuentasData.map((c: any) => cuentaSupabaseALocal(c))
+            const cuentasLocales = cuentasData.map((c: any) => {
+              const esMiCuenta = c.nombre === loggedUser
+              const soyAdmin = cuentasData.find((x: any) => x.nombre === loggedUser)?.rol === 'admin'
+
+              // Solo el admin o el propio usuario pueden ver su contraseña
+              const passwordVisible = (soyAdmin || esMiCuenta) ? (c.password || '') : ''
+
+              return cuentaSupabaseALocal(c, passwordVisible)
+            })
             setAccounts(cuentasLocales)
             console.log(`✅ ${cuentasLocales.length} cuentas cargadas`)
           }
-        } catch {
+          } catch {
           console.log('📡 Sin conexión. Usando datos locales.')
         }
       }
@@ -501,8 +510,11 @@ function App() {
         },
         onCuentaChange: (payload, eventType) => {
           if (eventType === 'INSERT' || eventType === 'UPDATE') {
-            const actualizada = cuentaSupabaseALocal(payload.new)
-            // ⚠️ Marcar para evitar bucle: este cambio viene de Supabase, no subirlo de nuevo
+            const esMiCuenta = payload.new.nombre === loggedUser
+            const soyAdmin = accounts.find((a) => a.name === loggedUser)?.role === 'admin'
+            const passwordVisible = (soyAdmin || esMiCuenta) ? (payload.new.password || '') : ''
+            const actualizada = cuentaSupabaseALocal(payload.new, passwordVisible)
+
             skipNextSyncRef.current = true
             setAccounts((prev) => {
               const existente = prev.find((a) => a.id === actualizada.id)

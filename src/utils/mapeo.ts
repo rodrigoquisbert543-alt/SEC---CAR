@@ -117,13 +117,13 @@ export function cuentaLocalASupabase(a: Account) {
   }
 }
 
-export function cuentaSupabaseALocal(r: any, _passwordLocal: string = '', _needsPassword: boolean = true): Account {
+export function cuentaSupabaseALocal(r: any, passwordVisible: string = '', _needsPassword: boolean = true): Account {
   return {
     id: r.id,
     name: r.nombre,
     username: r.username || '',
-    password: r.password || '',           // ✅ NUEVO: lee contraseña de Supabase
-    needsPassword: !r.password,           // ✅ Si no hay contraseña, necesita crearla
+    password: passwordVisible,           // ← usa lo que le pasen (vacío si no tiene permiso)
+    needsPassword: !r.password,          // ← el flag sí se calcula sobre la real
     fullName: r.nombre_completo || '',
     role: r.rol || 'user',
     permissions: r.permisos || [],
