@@ -492,7 +492,7 @@ function App() {
               setAccounts((prev) => prev.filter((a) => a.id !== payload.old.id))
             }
           }
-        }, 'sec-car-realtime-public')  // ← CON COMA 
+        }, )  // ← CON COMA 
         
         return stopRealtime
       }, [])
@@ -582,7 +582,7 @@ function App() {
             setPeople((prev) => prev.filter((p) => p.id !== payload.old.id))
           }
         },
-      }, 'sec-car-realtime-public')
+      }, )
      
 
       return stop
