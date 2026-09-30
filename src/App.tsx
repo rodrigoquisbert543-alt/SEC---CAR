@@ -406,7 +406,65 @@ function App() {
     }
 
     sincronizarCuentas()
-  }, [accounts, loggedUser])    // ============================================================
+  }, [accounts, loggedUser])
+      // ============================================================
+      // CARGA PÚBLICA DE CUENTAS + REALTIME DE CUENTAS
+      // Se ejecuta SIEMPRE, incluso en la pantalla de login
+      // ============================================================
+      useEffect(() => {
+        // 1) Cargar cuentas desde Supabase (sin contraseña, para la pantalla de login)
+        const cargarCuentasPublicas = async () => {
+          try {
+            const { data, error } = await supabase
+              .from('cuentas')
+              .select('id, username, nombre, nombre_completo, rol, permisos, activo, avatar, created_at, updated_at')
+              .order('nombre')
+
+            if (error) {
+              console.warn('⚠️ Error al cargar cuentas públicas:', error.message)
+              return
+            }
+
+            if (data && data.length > 0) {
+              const cuentasLocales = data.map((c: any) => cuentaSupabaseALocal(c, ''))
+              setAccounts(cuentasLocales)
+              console.log(`✅ ${cuentasLocales.length} cuentas cargadas (público)`)
+            }
+          } catch {
+            console.log('📡 Sin conexión. Usando cuentas locales.')
+          }
+        }
+
+        cargarCuentasPublicas()
+
+        // 2) Realtime de CUENTAS: siempre activo
+        const stopRealtime = startRealtimeSync({
+          onCuentaChange: (payload, eventType) => {
+            if (eventType === 'INSERT' || eventType === 'UPDATE') {
+              const esMiCuenta = payload.new.nombre === loggedUser
+              const soyAdmin = accounts.find((a) => a.name === loggedUser)?.role === 'admin'
+              const passwordVisible = (soyAdmin || esMiCuenta) ? (payload.new.password || '') : ''
+              const actualizada = cuentaSupabaseALocal(payload.new, passwordVisible)
+
+              skipNextSyncRef.current = true
+              setAccounts((prev) => {
+                const existente = prev.find((a) => a.id === actualizada.id)
+                if (existente) {
+                  return prev.map((a) => a.id === actualizada.id ? actualizada : a)
+                }
+                return [...prev, actualizada]
+              })
+            } else if (eventType === 'DELETE') {
+              skipNextSyncRef.current = true
+              setAccounts((prev) => prev.filter((a) => a.id !== payload.old.id))
+            }
+          },
+        })
+
+        return stopRealtime
+      }, [])
+      
+    // ============================================================
     // ============================================================
     // CARGA INICIAL + REALTIME (5 tablas)
     // ============================================================
@@ -434,28 +492,11 @@ function App() {
             setPeople(clientesLocales)
             console.log(`✅ ${clientesLocales.length} clientes cargados`)
           }
-
-          // CUENTAS
-          // CUENTAS
-          const { data: cuentasData } = await supabase.from('cuentas').select('*').order('nombre')
-          if (cuentasData && cuentasData.length > 0) {
-            const cuentasLocales = cuentasData.map((c: any) => {
-              const esMiCuenta = c.nombre === loggedUser
-              const soyAdmin = cuentasData.find((x: any) => x.nombre === loggedUser)?.rol === 'admin'
-
-              // Solo el admin o el propio usuario pueden ver su contraseña
-              const passwordVisible = (soyAdmin || esMiCuenta) ? (c.password || '') : ''
-
-              return cuentaSupabaseALocal(c, passwordVisible)
-            })
-            setAccounts(cuentasLocales)
-            console.log(`✅ ${cuentasLocales.length} cuentas cargadas`)
-          }
-          } catch {
+        } catch {
           console.log('📡 Sin conexión. Usando datos locales.')
         }
-      }
 
+      }
       cargarInicial()
 
       // 2) Realtime: escuchar cambios en las 5 tablas
@@ -506,26 +547,6 @@ function App() {
             setPeople((prev) => prev.map((p) => p.id === actualizado.id ? { ...p, ...actualizado } : p))
           } else if (eventType === 'DELETE') {
             setPeople((prev) => prev.filter((p) => p.id !== payload.old.id))
-          }
-        },
-        onCuentaChange: (payload, eventType) => {
-          if (eventType === 'INSERT' || eventType === 'UPDATE') {
-            const esMiCuenta = payload.new.nombre === loggedUser
-            const soyAdmin = accounts.find((a) => a.name === loggedUser)?.role === 'admin'
-            const passwordVisible = (soyAdmin || esMiCuenta) ? (payload.new.password || '') : ''
-            const actualizada = cuentaSupabaseALocal(payload.new, passwordVisible)
-
-            skipNextSyncRef.current = true
-            setAccounts((prev) => {
-              const existente = prev.find((a) => a.id === actualizada.id)
-              if (existente) {
-                return prev.map((a) => a.id === actualizada.id ? actualizada : a)
-              }
-              return [...prev, actualizada]
-            })
-          } else if (eventType === 'DELETE') {
-            skipNextSyncRef.current = true
-            setAccounts((prev) => prev.filter((a) => a.id !== payload.old.id))
           }
         },
       })
