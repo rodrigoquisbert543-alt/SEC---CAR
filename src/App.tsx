@@ -369,7 +369,6 @@ function App() {
   const [accounts, setAccounts] = useState<Account[]>(() =>
     migratePermissions(seedIfEmpty(loadAccounts()))
   )
-  const skipNextSyncRef = useRef(false)
   ;
   // Guardar cuentas en localStorage Y en Supabase
   // Solo guardar en localStorage (siempre)
