@@ -8,9 +8,9 @@ type RealtimeCallbacks = {
   onCuentaChange?: (payload: any, eventType: string) => void
 }
 
-export function startRealtimeSync(callbacks: RealtimeCallbacks): () => void {
+export function startRealtimeSync(callbacks: RealtimeCallbacks, channelName: string = 'sec-car-realtime'): () => void {
   const channel = supabase
-    .channel('sec-car-realtime')
+    .channel(channelName)   // ← Nombre único
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ingresos' },
       (payload) => callbacks.onIngresoChange?.(payload, payload.eventType))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'egresos' },
@@ -22,7 +22,7 @@ export function startRealtimeSync(callbacks: RealtimeCallbacks): () => void {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'cuentas' },
       (payload) => callbacks.onCuentaChange?.(payload, payload.eventType))
     .subscribe((status) => {
-      console.log('🔌 Realtime:', status)
+      console.log(`🔌 Realtime [${channelName}]:`, status)
     })
 
   return () => {

@@ -372,12 +372,12 @@ function App() {
   ;
   // Guardar cuentas en localStorage Y en Supabase
   // Solo guardar en localStorage (siempre)
+  // Guardar cuentas en localStorage (siempre)
   useEffect(() => {
     saveAccounts(accounts)
   }, [accounts])
 
-  // Subir a Supabase SOLO cuando se hace un cambio explícito
-  // Usamos una referencia para saber si el cambio vino de realtime o de nosotros
+  // Subir a Supabase SOLO las cuentas cuya contraseña cambió
   const skipNextSyncRef = useRef(false)
 
   useEffect(() => {
@@ -388,26 +388,59 @@ function App() {
     }
 
     const sincronizarCuentas = async () => {
-      for (const cuenta of accounts) {
-        const payload = cuentaLocalASupabase(cuenta)
-        try {
+      try {
+        // 1) Traer el estado actual de Supabase
+        const { data: remotas, error: errorLectura } = await supabase
+          .from('cuentas')
+          .select('id, password')
+
+        if (errorLectura) {
+          console.warn('⚠️ Error al leer cuentas de Supabase:', errorLectura.message)
+          return
+        }
+
+        const mapaRemoto = new Map<string, string>(
+          (remotas || []).map((r: any) => [r.id, r.password || ''])
+        )
+
+        // 2) Comparar y subir SOLO las que cambiaron
+        for (const cuenta of accounts) {
+          const passwordLocal = cuenta.password || ''
+          const passwordRemoto = mapaRemoto.get(cuenta.id) ?? ''
+
+          // 🔒 REGLAS DE SEGURIDAD:
+
+          // Regla 1: Si el local NO tiene contraseña pero el remoto SÍ, NO sobrescribir
+          if (!passwordLocal && passwordRemoto) {
+            console.log(`⏭️ Saltando ${cuenta.name} (local sin pass, remoto con pass)`)
+            continue
+          }
+
+          // Regla 2: Si son iguales, no hacer nada
+          if (passwordLocal === passwordRemoto) {
+            continue
+          }
+
+          // Regla 3: Si el local tiene contraseña y difiere del remoto → subir
+          const payload = cuentaLocalASupabase(cuenta)
           const { error } = await supabase
             .from('cuentas')
             .upsert(payload, { onConflict: 'id' })
+
           if (error) {
             console.warn(`⚠️ Error al subir cuenta ${cuenta.name}:`, error.message)
           } else {
-            console.log(`✅ Cuenta sincronizada: ${cuenta.name}`)
+            console.log(`✅ Cuenta sincronizada: ${cuenta.name} (pass: ${passwordLocal ? 'sí' : 'no'})`)
           }
-        } catch {
-          console.log(`📡 Sin conexión. Cuenta ${cuenta.name} pendiente.`)
         }
+      } catch {
+        console.log('📡 Sin conexión. Cuentas pendientes.')
       }
     }
 
     sincronizarCuentas()
   }, [accounts, loggedUser])
-      // ============================================================
+  // ============================================================
       // CARGA PÚBLICA DE CUENTAS + REALTIME DE CUENTAS
       // Se ejecuta SIEMPRE, incluso en la pantalla de login
       // ============================================================
@@ -458,9 +491,9 @@ function App() {
               skipNextSyncRef.current = true
               setAccounts((prev) => prev.filter((a) => a.id !== payload.old.id))
             }
-          },
-        })
-
+          }
+        }, 'sec-car-realtime-public')  // ← CON COMA 
+        
         return stopRealtime
       }, [])
       
@@ -522,7 +555,7 @@ function App() {
           } else if (eventType === 'DELETE') {
             setExpenses((prev) => prev.filter((e) => e.id !== payload.old.id))
           }
-        },
+        }, 
         onEventoChange: (payload, eventType) => {
           if (eventType === 'INSERT' || eventType === 'UPDATE') {
             const nombre = payload.new.nombre
@@ -549,7 +582,8 @@ function App() {
             setPeople((prev) => prev.filter((p) => p.id !== payload.old.id))
           }
         },
-      })
+      }, 'sec-car-realtime-public')
+     
 
       return stop
     }, [loggedUser])
