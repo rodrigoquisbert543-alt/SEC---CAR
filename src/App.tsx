@@ -369,13 +369,24 @@ function App() {
   const [accounts, setAccounts] = useState<Account[]>(() =>
     migratePermissions(seedIfEmpty(loadAccounts()))
   )
+  const skipNextSyncRef = useRef(false)
   ;
   // Guardar cuentas en localStorage Y en Supabase
+  // Solo guardar en localStorage (siempre)
   useEffect(() => {
     saveAccounts(accounts)
+  }, [accounts])
 
+  // Subir a Supabase SOLO cuando se hace un cambio explícito
+  // Usamos una referencia para saber si el cambio vino de realtime o de nosotros
+  const skipNextSyncRef = useRef(false)
+
+  useEffect(() => {
     if (!loggedUser || accounts.length === 0) return
-
+    if (skipNextSyncRef.current) {
+      skipNextSyncRef.current = false
+      return
+    }
 
     const sincronizarCuentas = async () => {
       for (const cuenta of accounts) {
@@ -396,8 +407,7 @@ function App() {
     }
 
     sincronizarCuentas()
-  }, [accounts, loggedUser])  
-    // ============================================================
+  }, [accounts, loggedUser])    // ============================================================
     // ============================================================
     // CARGA INICIAL + REALTIME (5 tablas)
     // ============================================================
@@ -493,15 +503,17 @@ function App() {
         onCuentaChange: (payload, eventType) => {
           if (eventType === 'INSERT' || eventType === 'UPDATE') {
             const actualizada = cuentaSupabaseALocal(payload.new)
+            // ⚠️ Marcar para evitar bucle: este cambio viene de Supabase, no subirlo de nuevo
+            skipNextSyncRef.current = true
             setAccounts((prev) => {
               const existente = prev.find((a) => a.id === actualizada.id)
               if (existente) {
-                // Ya no preservamos password local, viene de Supabase
                 return prev.map((a) => a.id === actualizada.id ? actualizada : a)
               }
               return [...prev, actualizada]
             })
           } else if (eventType === 'DELETE') {
+            skipNextSyncRef.current = true
             setAccounts((prev) => prev.filter((a) => a.id !== payload.old.id))
           }
         },
