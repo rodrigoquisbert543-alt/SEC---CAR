@@ -6,9 +6,8 @@ const accountsKey = 'sec-car-accounts-v2'
 export const ADMIN_KEY = import.meta.env.VITE_ADMIN_RESET_KEY || 'SEC-CAR-ADMIN'
 
 export function uid(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  return crypto.randomUUID()
 }
-
 // ============================================================
 // MIGRACIÓN DE PERMISOS VIEJOS → NUEVOS
 // ============================================================
