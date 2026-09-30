@@ -1,5 +1,15 @@
-﻿import { loadFromSupabase, fusionarDatos, supabaseAFormatoLocal, localAFormatoSupabase, startLiveSync, } from './utils/liveSync'
+﻿import { loadFromSupabase, fusionarDatos } from './utils/liveSync'
 import { startRealtimeSync } from './utils/realtime'
+import {
+  ingresoLocalASupabase,
+  ingresoSupabaseALocal,
+  egresoLocalASupabase,
+  egresoSupabaseALocal,
+  clienteLocalASupabase,
+  clienteSupabaseALocal,
+  cuentaLocalASupabase,
+  cuentaSupabaseALocal,
+} from './utils/mapeo'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import type { Account, Permission } from './types'
@@ -357,8 +367,8 @@ function App() {
   const [pdfMontoMax, setPdfMontoMax] = useState('')
 
   const [accounts, setAccounts] = useState<Account[]>(() =>
-    migratePermissions(seedIfEmpty(loadAccounts())
-  ))
+    migratePermissions(seedIfEmpty(loadAccounts()))
+  )
   ;
   useEffect(() => { saveAccounts(accounts) }, [accounts])
 
@@ -373,156 +383,122 @@ function App() {
       })
     }
   }, [])
-  // ============================================================
-  // REALTIME: Actualizaciones instantáneas desde Supabase
-  // ============================================================
-  useEffect(() => {
-    if (!loggedUser) return
-
-    const stop = startRealtimeSync({
-      onIngresoChange: (payload, eventType) => {
-        if (eventType === 'INSERT') {
-          const nuevo = supabaseAFormatoLocal('ingresos', payload.new)
-          setPayments((prev) => {
-            // Evitar duplicados: si ya existe (porque lo subimos nosotros), ignorar
-            if (prev.some((p) => p.id === nuevo.id)) return prev
-            return [nuevo, ...prev]
-          })
-        } 
-        else if (eventType === 'UPDATE') {
-          const actualizado = supabaseAFormatoLocal('ingresos', payload.new)
-          setPayments((prev) =>
-            prev.map((p) => p.id === actualizado.id ? { ...p, ...actualizado } : p)
-          )
-        } 
-        else if (eventType === 'DELETE') {
-          const idEliminado = payload.old.id
-          setPayments((prev) => prev.filter((p) => p.id !== idEliminado))
-        }
-      },
-
-      onEgresoChange: (payload, eventType) => {
-        if (eventType === 'INSERT') {
-          const nuevo = supabaseAFormatoLocal('egresos', payload.new)
-          setExpenses((prev) => {
-            if (prev.some((e) => e.id === nuevo.id)) return prev
-            return [nuevo, ...prev]
-          })
-        } 
-        else if (eventType === 'UPDATE') {
-          const actualizado = supabaseAFormatoLocal('egresos', payload.new)
-          setExpenses((prev) =>
-            prev.map((e) => e.id === actualizado.id ? { ...e, ...actualizado } : e)
-          )
-        } 
-        else if (eventType === 'DELETE') {
-          const idEliminado = payload.old.id
-          setExpenses((prev) => prev.filter((e) => e.id !== idEliminado))
-        }
-      },
-
-      onEventoChange: (payload, eventType) => {
-        if (eventType === 'INSERT') {
-          const nombre = payload.new.nombre
-          setEventOptions((prev) => prev.includes(nombre) ? prev : [...prev, nombre])
-          setEventPrices((prev) => ({ ...prev, [nombre]: payload.new.precio || 0 }))
-        } 
-        else if (eventType === 'UPDATE') {
-          const nombre = payload.new.nombre
-          setEventPrices((prev) => ({ ...prev, [nombre]: payload.new.precio || 0 }))
-        } 
-        else if (eventType === 'DELETE') {
-          const nombre = payload.old.nombre
-          setEventOptions((prev) => prev.filter((n) => n !== nombre))
-          setEventPrices((prev) => {
-            const { [nombre]: _, ...resto } = prev
-            return resto
-          })
-        }
-      },
-    })
-
-    return stop
-  }, [loggedUser])
-  // ============================================================
-  // FUSIÓN INICIAL CON SUPABASE (al iniciar sesión)
-  // ============================================================
-  useEffect(() => {
-    if (!loggedUser) return
-
-    const fusionarConSupabase = async () => {
-      const data = await loadFromSupabase()
-      if (!data) return
-
-      // Convertir los registros de Supabase al formato local
-      const ingresosRemotos = data.ingresos.map((r) => supabaseAFormatoLocal('ingresos', r))
-      const egresosRemotos = data.egresos.map((r) => supabaseAFormatoLocal('egresos', r))
-
-      // Fusionar con lo local
-      const { fusionados: ingresosFusionados, paraSubir: ingresosParaSubir } = fusionarDatos(payments, ingresosRemotos)
-      const { fusionados: egresosFusionados, paraSubir: egresosParaSubir } = fusionarDatos(expenses, egresosRemotos)
-
-      // Actualizar el estado local
-      setPayments(ingresosFusionados as Payment[])
-      setExpenses(egresosFusionados as Expense[])
-
-      // Encolar lo que esté más actualizado localmente
-      if (ingresosParaSubir.length > 0) {
-        for (const p of ingresosParaSubir) {
-          enqueue({
-            table: 'ingresos',
-            operation: 'insert',
-            payload: localAFormatoSupabase('ingresos', p),
-          })
-        }
-      }
-      if (egresosParaSubir.length > 0) {
-        for (const e of egresosParaSubir) {
-          enqueue({
-            table: 'egresos',
-            operation: 'insert',
-            payload: localAFormatoSupabase('egresos', e),
-          })
-        }
-      }
-
-      console.log(
-        `🔄 Fusión completa: ${ingresosFusionados.length} ingresos, ${egresosFusionados.length} egresos`
-      )
-    }
-
-    fusionarConSupabase()
-  }, [loggedUser])
     // ============================================================
-    // CARGAR EVENTOS DESDE SUPABASE AL INICIAR
+    // ============================================================
+    // CARGA INICIAL + REALTIME (5 tablas)
     // ============================================================
     useEffect(() => {
       if (!loggedUser) return
 
-      const cargarEventos = async () => {
+      // 1) Carga inicial desde Supabase
+      const cargarInicial = async () => {
         try {
-          const { data, error } = await supabase.from('eventos').select('*').order('nombre')
-          if (error || !data) return
+          // EVENTOS
+          const { data: eventosData } = await supabase.from('eventos').select('*').order('nombre')
+          if (eventosData) {
+            const nombres = eventosData.map((e: any) => e.nombre)
+            const precios: Record<string, number> = {}
+            eventosData.forEach((e: any) => { precios[e.nombre] = e.precio || 0 })
+            setEventOptions(nombres)
+            setEventPrices(precios)
+            console.log(`✅ ${nombres.length} eventos cargados`)
+          }
 
-          const nombres = data.map((e: any) => e.nombre)
-          const precios: Record<string, number> = {}
-          data.forEach((e: any) => {
-            precios[e.nombre] = e.precio || 0
-          })
+          // CLIENTES
+          const { data: clientesData } = await supabase.from('clientes').select('*').order('nombre')
+          if (clientesData) {
+            const clientesLocales = clientesData.map((c: any) => clienteSupabaseALocal(c))
+            setPeople(clientesLocales)
+            console.log(`✅ ${clientesLocales.length} clientes cargados`)
+          }
 
-          setEventOptions(nombres)
-          setEventPrices(precios)
-          console.log(`✅ ${nombres.length} eventos cargados desde Supabase`)
+          // CUENTAS
+          const { data: cuentasData } = await supabase.from('cuentas').select('*').order('nombre')
+          if (cuentasData && cuentasData.length > 0) {
+            const cuentasLocales = cuentasData.map((c: any) => {
+              const existente = accounts.find((a) => a.id === c.id)
+              return cuentaSupabaseALocal(c, existente?.password || '', existente?.needsPassword ?? true)
+            })
+            setAccounts(cuentasLocales)
+            console.log(`✅ ${cuentasLocales.length} cuentas cargadas`)
+          }
         } catch {
-          console.log('📡 Sin conexión. Usando eventos locales.')
+          console.log('📡 Sin conexión. Usando datos locales.')
         }
       }
 
-      cargarEventos()
+      cargarInicial()
 
-      // Refrescar cada 15 segundos (sync en vivo)
-      const interval = setInterval(cargarEventos, 15000)
-      return () => clearInterval(interval)
+      // 2) Realtime: escuchar cambios en las 5 tablas
+      const stop = startRealtimeSync({
+        onIngresoChange: (payload, eventType) => {
+          if (eventType === 'INSERT') {
+            const nuevo = ingresoSupabaseALocal(payload.new)
+            setPayments((prev) => prev.some((p) => p.id === nuevo.id) ? prev : [nuevo, ...prev])
+          } else if (eventType === 'UPDATE') {
+            const actualizado = ingresoSupabaseALocal(payload.new)
+            setPayments((prev) => prev.map((p) => p.id === actualizado.id ? { ...p, ...actualizado } : p))
+          } else if (eventType === 'DELETE') {
+            setPayments((prev) => prev.filter((p) => p.id !== payload.old.id))
+          }
+        },
+        onEgresoChange: (payload, eventType) => {
+          if (eventType === 'INSERT') {
+            const nuevo = egresoSupabaseALocal(payload.new)
+            setExpenses((prev) => prev.some((e) => e.id === nuevo.id) ? prev : [nuevo, ...prev])
+          } else if (eventType === 'UPDATE') {
+            const actualizado = egresoSupabaseALocal(payload.new)
+            setExpenses((prev) => prev.map((e) => e.id === actualizado.id ? { ...e, ...actualizado } : e))
+          } else if (eventType === 'DELETE') {
+            setExpenses((prev) => prev.filter((e) => e.id !== payload.old.id))
+          }
+        },
+        onEventoChange: (payload, eventType) => {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const nombre = payload.new.nombre
+            const precio = payload.new.precio || 0
+            setEventOptions((prev) => prev.includes(nombre) ? prev : [...prev, nombre])
+            setEventPrices((prev) => ({ ...prev, [nombre]: precio }))
+          } else if (eventType === 'DELETE') {
+            const nombre = payload.old.nombre
+            setEventOptions((prev) => prev.filter((n) => n !== nombre))
+            setEventPrices((prev) => {
+              const { [nombre]: _, ...resto } = prev
+              return resto
+            })
+          }
+        },
+        onClienteChange: (payload, eventType) => {
+          if (eventType === 'INSERT') {
+            const nuevo = clienteSupabaseALocal(payload.new)
+            setPeople((prev) => prev.some((p) => p.id === nuevo.id) ? prev : [...prev, nuevo])
+          } else if (eventType === 'UPDATE') {
+            const actualizado = clienteSupabaseALocal(payload.new)
+            setPeople((prev) => prev.map((p) => p.id === actualizado.id ? { ...p, ...actualizado } : p))
+          } else if (eventType === 'DELETE') {
+            setPeople((prev) => prev.filter((p) => p.id !== payload.old.id))
+          }
+        },
+        onCuentaChange: (payload, eventType) => {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const actualizada = cuentaSupabaseALocal(payload.new)
+            setAccounts((prev) => {
+              const existente = prev.find((a) => a.id === actualizada.id)
+              if (existente) {
+                return prev.map((a) => a.id === actualizada.id
+                  ? { ...actualizada, password: existente.password, needsPassword: existente.needsPassword }
+                  : a
+                )
+              }
+              return [...prev, actualizada]
+            })
+          } else if (eventType === 'DELETE') {
+            setAccounts((prev) => prev.filter((a) => a.id !== payload.old.id))
+          }
+        },
+      })
+
+      return stop
     }, [loggedUser])
     // ============================================================
     // VERIFICAR PERMISOS EN TIEMPO REAL
@@ -1053,7 +1029,25 @@ function App() {
     setAccounts(accounts.map((account) => account.name === loggedUser ? { ...account, fullName: fullNameDraft.trim() } : account))
   }
 
-  const addEventOption = () => {
+  const removeEventOption = async (name: string) => {
+    if (!hasPermission(currentUser, 'eventos_eliminar')) {
+      alert('No tienes permiso para eliminar eventos.')
+      return
+    }
+    setEventOptions(eventOptions.filter((option) => option !== name))
+
+    try {
+      const { error } = await supabase.from('eventos').delete().eq('nombre', name)
+      if (error) {
+        console.warn('⚠️ Error al eliminar evento:', error.message)
+      } else {
+        console.log('✅ Evento eliminado de Supabase:', name)
+      }
+    } catch {
+      console.log('📡 Sin conexión. No se pudo eliminar de Supabase.')
+    }
+  }
+  const addEventOption = async () => {
     if (!hasPermission(currentUser, 'eventos_crear')) {
       alert('No tienes permiso para crear eventos.')
       return
@@ -1064,55 +1058,31 @@ function App() {
       return
     }
 
-    // Guardar localmente
     setEventOptions([...eventOptions, name])
 
-    // Sincronizar con Supabase (con cola)
     const payload = {
       id: crypto.randomUUID(),
       nombre: name,
       precio: 0,
       updated_at: new Date().toISOString(),
     }
-    ;(async () => {
-      try {
-        const { error } = await supabase.from('eventos').insert(payload)
-        if (error) {
-          console.warn('⚠️ Error al subir evento. Se encola:', error.message)
-          enqueue({ table: 'eventos', operation: 'insert', payload })
-        } else {
-          console.log('✅ Evento subido a Supabase:', name)
-        }
-      } catch {
-        console.log('📡 Sin conexión. Se encola evento:', name)
-        enqueue({ table: 'eventos', operation: 'insert', payload })
+
+    try {
+      const { error } = await supabase.from('eventos').insert(payload)
+      if (error) {
+        console.warn('⚠️ Error al subir evento. Se encola:', error.message)
+        enqueue({ table: 'eventos' as any, operation: 'insert', payload })
+      } else {
+        console.log('✅ Evento subido a Supabase:', name)
       }
-    })()
+    } catch {
+      console.log('📡 Sin conexión. Se encola evento:', name)
+      enqueue({ table: 'eventos' as any, operation: 'insert', payload })
+    }
+
     setNewEventName('')
-    }
-
-  const removeEventOption = (name: string) => {
-    if (!hasPermission(currentUser, 'eventos_eliminar')) {
-      alert('No tienes permiso para eliminar eventos.')
-      return
-    }
-    setEventOptions(eventOptions.filter((option) => option !== name))
-
-    // Eliminar de Supabase
-      ;(async () => {
-        try {
-          const { error } = await supabase.from('eventos').delete().eq('nombre', name)
-          if (error) {
-            console.warn('⚠️ Error al eliminar evento en Supabase:', error.message)
-          } else {
-            console.log('✅ Evento eliminado de Supabase:', name)
-          }
-        } catch {
-          console.log('📡 Sin conexión. No se pudo eliminar evento de Supabase.')
-        }
-      })()
   }
-  const setEventPrice = (name: string, value: string) => {
+  const setEventPrice = async (name: string, value: string) => {
     if (!hasPermission(currentUser, 'eventos_editar')) {
       alert('No tienes permiso para editar precios.')
       return
@@ -1120,29 +1090,21 @@ function App() {
     const precio = Number(value) || 0
     setEventPrices({ ...eventPrices, [name]: precio })
 
-    // Actualizar precio en Supabase
-      ;(async () => {
-        try {
-          const { error } = await supabase.from('eventos').update({ precio, updated_at: new Date().toISOString() }).eq('nombre', name)
-          if (error) {
-            console.warn('⚠️ Error al actualizar precio. Se encola:', error.message)
-            enqueue({ 
-              table: 'eventos', 
-              operation: 'update', 
-              payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } 
-            })
-          } else {
-            console.log('✅ Precio actualizado en Supabase:', name, precio)
-          }
-        } catch {
-          console.log('📡 Sin conexión. Se encola actualización de precio.')
-          enqueue({ 
-            table: 'eventos', 
-            operation: 'update', 
-            payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } 
-          })
-        }
-      })()
+    try {
+      const { error } = await supabase
+        .from('eventos')
+        .update({ precio, updated_at: new Date().toISOString() })
+        .eq('nombre', name)
+      if (error) {
+        console.warn('⚠️ Error al actualizar precio. Se encola:', error.message)
+        enqueue({ table: 'eventos' as any, operation: 'update', payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } })
+      } else {
+        console.log('✅ Precio actualizado:', name, precio)
+      }
+    } catch {
+      console.log('📡 Sin conexión. Se encola actualización.')
+      enqueue({ table: 'eventos' as any, operation: 'update', payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } })
+    }
   }
   const addPerson = () => {
     if (!hasPermission(currentUser, 'clientes_crear')) {
