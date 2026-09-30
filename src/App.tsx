@@ -124,7 +124,7 @@ function AccessScreen({
       setAvatarDraft('')
       return
     }
-    if (password && password === current.password && !current.needsPassword) {
+    if (password && password === current.password) {
       onLogin(selected)
       return
     }
@@ -459,7 +459,7 @@ function App() {
             }
 
             if (data && data.length > 0) {
-              const cuentasLocales = data.map((c: any) => cuentaSupabaseALocal(c, ''))
+              const cuentasLocales = data.map((c: any) => cuentaSupabaseALocal(c, c.password || ''))
               setAccounts(cuentasLocales)
               console.log(`✅ ${cuentasLocales.length} cuentas cargadas (público)`)
             }
