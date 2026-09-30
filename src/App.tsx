@@ -1193,14 +1193,56 @@ function App() {
       enqueue({ table: 'eventos' as any, operation: 'update', payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } })
     }
   }
-  const addPerson = () => {
+  const addPerson = async () => {
     if (!hasPermission(currentUser, 'clientes_crear')) {
       alert('No tienes permiso para agregar clientes.')
       return
     }
     if (!personForm.name.trim()) return
-    setPeople([...people, { id: crypto.randomUUID(), name: personForm.name.trim(), carnet: personForm.carnet.trim(), phone: personForm.phone.trim(), notes: personForm.notes.trim() }])
+
+    const nueva: Person = {
+      id: crypto.randomUUID(),
+      name: personForm.name.trim(),
+      carnet: personForm.carnet.trim(),
+      phone: personForm.phone.trim(),
+      notes: personForm.notes.trim(),
+    }
+
+    setPeople([...people, nueva])
     setPersonForm({ name: '', carnet: '', phone: '', notes: '' })
+
+    // Sincronizar con Supabase
+    const payload = clienteLocalASupabase(nueva)
+    try {
+      const { error } = await supabase.from('clientes').insert(payload)
+      if (error) {
+        console.warn('⚠️ Error al subir cliente. Se encola:', error.message)
+        enqueue({ table: 'clientes' as any, operation: 'insert', payload })
+      } else {
+        console.log('✅ Cliente subido a Supabase:', nueva.name)
+      }
+    } catch {
+      console.log('📡 Sin conexión. Se encola cliente:', nueva.name)
+      enqueue({ table: 'clientes' as any, operation: 'insert', payload })
+    }
+  }
+  const eliminarCuenta = async (id: string) => {
+    // 1) Actualizar local
+    setAccounts((prev) => prev.filter((a) => a.id !== id))
+
+    // 2) Eliminar de Supabase
+    try {
+      const { error } = await supabase.from('cuentas').delete().eq('id', id)
+      if (error) {
+        console.warn('⚠️ Error al eliminar cuenta. Se encola:', error.message)
+        enqueue({ table: 'cuentas' as any, operation: 'delete', payload: { id } })
+      } else {
+        console.log('✅ Cuenta eliminada de Supabase:', id)
+      }
+    } catch {
+      console.log('📡 Sin conexión. Se encola eliminación de cuenta.')
+      enqueue({ table: 'cuentas' as any, operation: 'delete', payload: { id } })
+    }
   }
 
   const removePerson = (id: string) => setPeople(people.filter((person) => person.id !== id))
@@ -1213,7 +1255,7 @@ function App() {
 
   const closeEditPerson = () => { setEditingPersonId(null); setPersonMessage('') }
 
-  const savePersonEdit = () => {
+  const savePersonEdit = async () => {
     if (!hasPermission(currentUser, 'clientes_editar')) {
       alert('No tienes permiso para editar clientes.')
       return
@@ -1228,26 +1270,63 @@ function App() {
     }
     const carnet = personEditForm.carnet.trim()
     const phone = personEditForm.phone.trim()
-    setPeople(people.map((person) => person.id === target.id ? { ...person, name, carnet, phone, notes: personEditForm.notes.trim() } : person))
+    const notes = personEditForm.notes.trim()
+
+    const actualizada = { ...target, name, carnet, phone, notes }
+
+    setPeople(people.map((person) => person.id === target.id ? actualizada : person))
+
+    // Si cambió el nombre, actualizar los pagos locales
     if (target.name.toLowerCase() !== name.toLowerCase() || carnet !== target.carnet || phone !== target.phone) {
       setPayments(payments.map((payment) => payment.person.toLowerCase() === target.name.toLowerCase()
         ? { ...payment, person: name, carnet: payment.carnet || carnet, phone: payment.phone || phone }
         : payment))
     }
-    setEditingPersonId(null); setPersonMessage('')
-  }
 
+    setEditingPersonId(null); setPersonMessage('')
+
+    // Sincronizar con Supabase
+    const payload = clienteLocalASupabase(actualizada)
+    try {
+      const { error } = await supabase.from('clientes').update(payload).eq('id', target.id)
+      if (error) {
+        console.warn('⚠️ Error al editar cliente. Se encola:', error.message)
+        enqueue({ table: 'clientes' as any, operation: 'update', payload: { id: target.id, data: payload } })
+      } else {
+        console.log('✅ Cliente actualizado en Supabase:', name)
+      }
+    } catch {
+      console.log('📡 Sin conexión. Se encola edición de cliente.')
+      enqueue({ table: 'clientes' as any, operation: 'update', payload: { id: target.id, data: payload } })
+    }
+  }
   const askRemovePerson = (person: Person) => setPendingDelete(person)
 
-  const confirmRemovePerson = () => {
+  const confirmRemovePerson = async () => {
     if (!hasPermission(currentUser, 'clientes_eliminar')) {
       alert('No tienes permiso para eliminar clientes.')
       return
     }
-    if (pendingDelete) removePerson(pendingDelete.id)
-    setPendingDelete(null)
-  }
+    if (!pendingDelete) return
 
+    const id = pendingDelete.id
+    removePerson(id)
+    setPendingDelete(null)
+
+    // Sincronizar con Supabase
+    try {
+      const { error } = await supabase.from('clientes').delete().eq('id', id)
+      if (error) {
+        console.warn('⚠️ Error al eliminar cliente. Se encola:', error.message)
+        enqueue({ table: 'clientes' as any, operation: 'delete', payload: { id } })
+      } else {
+        console.log('✅ Cliente eliminado de Supabase:', id)
+      }
+    } catch {
+      console.log('📡 Sin conexión. Se encola eliminación de cliente.')
+      enqueue({ table: 'clientes' as any, operation: 'delete', payload: { id } })
+    }
+  }
   const registerPayer = (name: string, carnet: string, phone: string) => setPeople([...people, { id: crypto.randomUUID(), name, carnet, phone, notes: '' }])
 
   const exportBackup = () => {
@@ -2054,10 +2133,10 @@ function App() {
           accounts={accounts}
           currentUserId={currentUser.id}
           onChange={setAccounts}
+          onDeleteAccount={eliminarCuenta}
           onClose={() => setShowUserManagement(false)}
         />
       )}
-
     </div>
   )
 }

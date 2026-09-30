@@ -9,10 +9,11 @@ type Props = {
   accounts: Account[]
   currentUserId: string
   onChange: (accounts: Account[]) => void
+  onDeleteAccount: (id: string) => void
   onClose: () => void
 }
 
-export default function UserManagement({ accounts, currentUserId, onChange, onClose }: Props) {
+export default function UserManagement({ accounts, currentUserId, onChange, onDeleteAccount, onClose }: Props) {
   const [editing, setEditing] = useState<Account | null>(null)
   const [creating, setCreating] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Account | null>(null)
@@ -62,10 +63,9 @@ export default function UserManagement({ accounts, currentUserId, onChange, onCl
       setError('No puedes eliminar tu propio usuario')
       return
     }
-    onChange(accounts.filter((a) => a.id !== acc.id))
+    onDeleteAccount(acc.id)   // ← Ahora delega al padre (que hará el DELETE en Supabase)
     setConfirmDelete(null)
   }
-
   const toggleActive = (acc: Account) => {
     if (acc.id === currentUserId) {
       setError('No puedes desactivar tu propio usuario')

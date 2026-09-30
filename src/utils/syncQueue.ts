@@ -2,11 +2,12 @@ import { supabase } from './supabase'
 
 type QueueItem = {
   id: string
-  table: 'ingresos' | 'egresos' | 'eventos'
+  table: 'ingresos' | 'egresos' | 'eventos' | 'cuentas' | 'clientes'
   operation: 'insert' | 'update' | 'delete'
   payload: any
   timestamp: number
 }
+
 const QUEUE_KEY = 'sec-car-sync-queue'
 
 // ============================================================
