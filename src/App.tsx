@@ -450,7 +450,7 @@ function App() {
           try {
             const { data, error } = await supabase
               .from('cuentas')
-              .select('id, username, nombre, nombre_completo, rol, permisos, activo, avatar, created_at, updated_at')
+              .select('id, username, nombre, nombre_completo, password, rol, permisos, activo, avatar, created_at, updated_at')
               .order('nombre')
 
             if (error) {
