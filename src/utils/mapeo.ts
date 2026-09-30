@@ -101,12 +101,14 @@ export function clienteSupabaseALocal(r: any) {
 
 // ---------- CUENTAS ----------
 // NO sincronizamos password ni needsPassword por seguridad
+// ---------- CUENTAS ----------
 export function cuentaLocalASupabase(a: Account) {
   return {
     id: a.id,
     username: a.username || '',
     nombre: a.name,
     nombre_completo: a.fullName || '',
+    password: a.password || '',           // ✅ NUEVO: incluye contraseña
     rol: a.role,
     permisos: a.permissions,
     activo: a.active,
@@ -115,13 +117,13 @@ export function cuentaLocalASupabase(a: Account) {
   }
 }
 
-export function cuentaSupabaseALocal(r: any, passwordLocal: string = '', needsPassword: boolean = true): Account {
+export function cuentaSupabaseALocal(r: any, _passwordLocal: string = '', _needsPassword: boolean = true): Account {
   return {
     id: r.id,
     name: r.nombre,
     username: r.username || '',
-    password: passwordLocal,
-    needsPassword,
+    password: r.password || '',           // ✅ NUEVO: lee contraseña de Supabase
+    needsPassword: !r.password,           // ✅ Si no hay contraseña, necesita crearla
     fullName: r.nombre_completo || '',
     role: r.rol || 'user',
     permissions: r.permisos || [],

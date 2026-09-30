@@ -370,19 +370,33 @@ function App() {
     migratePermissions(seedIfEmpty(loadAccounts()))
   )
   ;
-  useEffect(() => { saveAccounts(accounts) }, [accounts])
-
-    // Arrancar el listener de sincronización
+  // Guardar cuentas en localStorage Y en Supabase
   useEffect(() => {
-    startSyncListener()
+    saveAccounts(accounts)
 
-    //llamada explicita para que el compilador incluya flush   
-    if (navigator.onLine) {
-      flushQueue().catch((error) => {
-        console.warn('⚠️ Error al vaciar la cola de sincronización:', error.message)
-      })
+    if (!loggedUser || accounts.length === 0) return
+
+
+    const sincronizarCuentas = async () => {
+      for (const cuenta of accounts) {
+        const payload = cuentaLocalASupabase(cuenta)
+        try {
+          const { error } = await supabase
+            .from('cuentas')
+            .upsert(payload, { onConflict: 'id' })
+          if (error) {
+            console.warn(`⚠️ Error al subir cuenta ${cuenta.name}:`, error.message)
+          } else {
+            console.log(`✅ Cuenta sincronizada: ${cuenta.name}`)
+          }
+        } catch {
+          console.log(`📡 Sin conexión. Cuenta ${cuenta.name} pendiente.`)
+        }
+      }
     }
-  }, [])
+
+    sincronizarCuentas()
+  }, [accounts, loggedUser])  
     // ============================================================
     // ============================================================
     // CARGA INICIAL + REALTIME (5 tablas)
@@ -415,10 +429,7 @@ function App() {
           // CUENTAS
           const { data: cuentasData } = await supabase.from('cuentas').select('*').order('nombre')
           if (cuentasData && cuentasData.length > 0) {
-            const cuentasLocales = cuentasData.map((c: any) => {
-              const existente = accounts.find((a) => a.id === c.id)
-              return cuentaSupabaseALocal(c, existente?.password || '', existente?.needsPassword ?? true)
-            })
+            const cuentasLocales = cuentasData.map((c: any) => cuentaSupabaseALocal(c))
             setAccounts(cuentasLocales)
             console.log(`✅ ${cuentasLocales.length} cuentas cargadas`)
           }
@@ -485,10 +496,8 @@ function App() {
             setAccounts((prev) => {
               const existente = prev.find((a) => a.id === actualizada.id)
               if (existente) {
-                return prev.map((a) => a.id === actualizada.id
-                  ? { ...actualizada, password: existente.password, needsPassword: existente.needsPassword }
-                  : a
-                )
+                // Ya no preservamos password local, viene de Supabase
+                return prev.map((a) => a.id === actualizada.id ? actualizada : a)
               }
               return [...prev, actualizada]
             })
