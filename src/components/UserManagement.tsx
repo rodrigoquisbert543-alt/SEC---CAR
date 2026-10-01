@@ -44,10 +44,6 @@ export default function UserManagement({ accounts, currentUserId, onChange, onDe
       setError('Ya existe un usuario con ese nombre de usuario')
       return
     }
-    if (creating && !acc.password.trim()) {
-      setError('La contraseña es obligatoria para un usuario nuevo')
-      return
-    }
 
     const next = creating
       ? [...accounts, acc]
@@ -217,7 +213,7 @@ function UserEditor({
         </div>
 
         <div className="um-field">
-          <label>{isNew ? 'Contraseña' : 'Nueva contraseña (dejar vacío para no cambiar)'}</label>
+          <label>{isNew ? 'Contraseña (opcional - dejar vacío para que el usuario la cree)' : 'Nueva contraseña (dejar vacío para no cambiar)'}</label>
           <input type="password" value={draft.password} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" />
         </div>
 

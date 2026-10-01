@@ -8,10 +8,9 @@ type RealtimeCallbacks = {
   onCuentaChange?: (payload: any, eventType: string) => void
 }
 
-export function startRealtimeSync(callbacks: RealtimeCallbacks, channelName?: string): () => void {
-  const uniqueName = channelName || `sec-car-realtime-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+export function startRealtimeSync(callbacks: RealtimeCallbacks, channelName: string = 'sec-car-realtime'): () => void {
   const channel = supabase
-    .channel(uniqueName)    
+    .channel(channelName)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ingresos' },
       (payload) => callbacks.onIngresoChange?.(payload, payload.eventType))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'egresos' },
