@@ -372,15 +372,12 @@ function App() {
   ;
   // Guardar cuentas en localStorage Y en Supabase
   // Solo guardar en localStorage (siempre)
-  // Guardar cuentas en localStorage (siempre)
+  // ============================================================
+  // SINCRONIZACIÓN DE CUENTAS CON SUPABASE
+  // ============================================================
   useEffect(() => {
     saveAccounts(accounts)
-  }, [accounts])
 
-  // Subir a Supabase SOLO las cuentas cuya contraseña cambió
-  const skipNextSyncRef = useRef(false)
-
-  useEffect(() => {
     if (!loggedUser || accounts.length === 0) return
     if (skipNextSyncRef.current) {
       skipNextSyncRef.current = false
@@ -395,7 +392,7 @@ function App() {
           .select('id, password')
 
         if (errorLectura) {
-          console.warn('⚠️ Error al leer cuentas de Supabase:', errorLectura.message)
+          console.warn('⚠️ Error al leer cuentas:', errorLectura.message)
           return
         }
 
@@ -403,34 +400,33 @@ function App() {
           (remotas || []).map((r: any) => [r.id, r.password || ''])
         )
 
-        // 2) Comparar y subir SOLO las que cambiaron
+        // 2) Comparar y subir cada cuenta
         for (const cuenta of accounts) {
           const passwordLocal = cuenta.password || ''
           const passwordRemoto = mapaRemoto.get(cuenta.id) ?? ''
 
-          // 🔒 REGLAS DE SEGURIDAD:
-
-          // Regla 1: Si el local NO tiene contraseña pero el remoto SÍ, NO sobrescribir
-          if (!passwordLocal && passwordRemoto) {
-            console.log(`⏭️ Saltando ${cuenta.name} (local sin pass, remoto con pass)`)
-            continue
-          }
-
-          // Regla 2: Si son iguales, no hacer nada
-          if (passwordLocal === passwordRemoto) {
-            continue
-          }
-
-          // Regla 3: Si el local tiene contraseña y difiere del remoto → subir
+          // 🔒 Si el local NO tiene password y el remoto SÍ, NO sobrescribir la contraseña
+          // PERO SÍ subir los demás campos (permisos, rol, activo, etc.)
           const payload = cuentaLocalASupabase(cuenta)
-          const { error } = await supabase
-            .from('cuentas')
-            .upsert(payload, { onConflict: 'id' })
 
-          if (error) {
-            console.warn(`⚠️ Error al subir cuenta ${cuenta.name}:`, error.message)
-          } else {
-            console.log(`✅ Cuenta sincronizada: ${cuenta.name} (pass: ${passwordLocal ? 'sí' : 'no'})`)
+          // Si el local no tiene password pero el remoto sí, NO tocar la contraseña
+          if (!passwordLocal && passwordRemoto) {
+            // Remover el campo password del payload para no borrarlo
+            delete (payload as any).password
+          }
+
+          try {
+            const { error } = await supabase
+              .from('cuentas')
+              .upsert(payload, { onConflict: 'id' })
+
+            if (error) {
+              console.warn(`⚠️ Error al subir ${cuenta.name}:`, error.message)
+            } else {
+              console.log(`✅ Cuenta sincronizada: ${cuenta.name}`)
+            }
+          } catch {
+            console.log(`📡 Sin conexión. Cuenta ${cuenta.name} pendiente.`)
           }
         }
       } catch {
@@ -439,8 +435,7 @@ function App() {
     }
 
     sincronizarCuentas()
-  }, [accounts, loggedUser])
-  // ============================================================
+  }, [accounts, loggedUser])  // ============================================================
       // CARGA PÚBLICA DE CUENTAS + REALTIME DE CUENTAS
       // Se ejecuta SIEMPRE, incluso en la pantalla de login
       // ============================================================
@@ -512,18 +507,27 @@ function App() {
 
       // 4) Cuando la app vuelve al primer plano (celular despierta, cambias de pestaña)
       //    → recarga cuentas Y reconecta el Realtime
-      const onVisibilityChange = async () => {
+    // 4) Cuando la app vuelve al primer plano, con debounce
+    let reconexionTimer: any = null
+    const onVisibilityChange = () => {
+      // Cancelar si ya había un timer pendiente
+      if (reconexionTimer) clearTimeout(reconexionTimer)
+
+      reconexionTimer = setTimeout(async () => {
         if (document.hidden) {
-          // La app se minimiza: cerramos el Realtime para no consumir recursos
+          // La app se minimiza: cerramos el Realtime
           detenerRealtime()
         } else {
           // La app vuelve: recargamos datos Y reconectamos
           console.log('🔄 App volvió al frente. Recargando y reconectando...')
           await cargarCuentas()
-          iniciarRealtime()
+          // Solo reconectar si no hay una conexión activa
+          if (!stopRealtime) {
+            iniciarRealtime()
+          }
         }
-      }
-
+      }, 500)   // 500ms de debounce
+    }
       // 5) Carga inicial + Realtime
       cargarCuentas()
       iniciarRealtime()
@@ -534,6 +538,7 @@ function App() {
       // 7) Cleanup
       return () => {
         activo = false
+        if (reconexionTimer) clearTimeout(reconexionTimer)
         document.removeEventListener('visibilitychange', onVisibilityChange)
         detenerRealtime()
       }

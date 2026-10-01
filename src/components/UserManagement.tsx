@@ -31,7 +31,7 @@ export default function UserManagement({ accounts, currentUserId, onChange, onDe
   active: true,
   createdAt: Date.now(),
 })
-  const handleSave = (acc: Account) => {
+  const handleSave = async (acc: Account) => {
     setError('')
     if (!acc.name.trim() || !acc.username.trim()) {
       setError('Nombre y usuario son obligatorios')
@@ -53,7 +53,6 @@ export default function UserManagement({ accounts, currentUserId, onChange, onDe
     setEditing(null)
     setCreating(false)
   }
-
   const handleDelete = (acc: Account) => {
     if (acc.id === currentUserId) {
       setError('No puedes eliminar tu propio usuario')
