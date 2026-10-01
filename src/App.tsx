@@ -444,34 +444,41 @@ function App() {
       // CARGA PÚBLICA DE CUENTAS + REALTIME DE CUENTAS
       // Se ejecuta SIEMPRE, incluso en la pantalla de login
       // ============================================================
-      useEffect(() => {
-        // 1) Cargar cuentas desde Supabase (sin contraseña, para la pantalla de login)
-        const cargarCuentasPublicas = async () => {
-          try {
-            const { data, error } = await supabase
-              .from('cuentas')
-              .select('id, username, nombre, nombre_completo, password, rol, permisos, activo, avatar, created_at, updated_at')
-              .order('nombre')
+    useEffect(() => {
+      let activo = true
+      let stopRealtime: (() => void) | null = null
 
-            if (error) {
-              console.warn('⚠️ Error al cargar cuentas públicas:', error.message)
-              return
-            }
+      // 1) Carga las cuentas desde Supabase
+      const cargarCuentas = async () => {
+        if (!activo) return
+        try {
+          const { data, error } = await supabase
+            .from('cuentas')
+            .select('id, username, nombre, nombre_completo, password, rol, permisos, activo, avatar, created_at, updated_at')
+            .order('nombre')
 
-            if (data && data.length > 0) {
-              const cuentasLocales = data.map((c: any) => cuentaSupabaseALocal(c, c.password || ''))
-              setAccounts(cuentasLocales)
-              console.log(`✅ ${cuentasLocales.length} cuentas cargadas (público)`)
-            }
-          } catch {
-            console.log('📡 Sin conexión. Usando cuentas locales.')
+          if (error) {
+            console.warn('⚠️ Error al cargar cuentas:', error.message)
+            return
           }
+
+          if (data && data.length > 0 && activo) {
+            setAccounts((prev) => {
+              return data.map((c: any) => {
+                const existente = prev.find(a => a.id === c.id)
+                const passwordVisible = existente?.password || c.password || ''
+                return cuentaSupabaseALocal(c, passwordVisible)
+              })
+            })
+          }
+        } catch {
+          console.log('📡 Sin conexión. Usando cuentas locales.')
         }
+      }
 
-        cargarCuentasPublicas()
-
-        // 2) Realtime de CUENTAS: siempre activo
-        const stopRealtime = startRealtimeSync({
+      // 2) Inicia el Realtime
+      const iniciarRealtime = () => {
+        stopRealtime = startRealtimeSync({
           onCuentaChange: (payload, eventType) => {
             if (eventType === 'INSERT' || eventType === 'UPDATE') {
               const esMiCuenta = payload.new.nombre === loggedUser
@@ -491,14 +498,46 @@ function App() {
               skipNextSyncRef.current = true
               setAccounts((prev) => prev.filter((a) => a.id !== payload.old.id))
             }
-          }
-        }, 'sec-car-realtime-cuentas')  // ← CON COMA 
-        
-        return stopRealtime
-      }, [])
-      
-    // ============================================================
-    // ============================================================
+          },
+        })
+      }
+
+      // 3) Detiene el Realtime (para reconectar limpio)
+      const detenerRealtime = () => {
+        if (stopRealtime) {
+          stopRealtime()
+          stopRealtime = null
+        }
+      }
+
+      // 4) Cuando la app vuelve al primer plano (celular despierta, cambias de pestaña)
+      //    → recarga cuentas Y reconecta el Realtime
+      const onVisibilityChange = async () => {
+        if (document.hidden) {
+          // La app se minimiza: cerramos el Realtime para no consumir recursos
+          detenerRealtime()
+        } else {
+          // La app vuelve: recargamos datos Y reconectamos
+          console.log('🔄 App volvió al frente. Recargando y reconectando...')
+          await cargarCuentas()
+          iniciarRealtime()
+        }
+      }
+
+      // 5) Carga inicial + Realtime
+      cargarCuentas()
+      iniciarRealtime()
+
+      // 6) Escuchar cambios de visibilidad
+      document.addEventListener('visibilitychange', onVisibilityChange)
+
+      // 7) Cleanup
+      return () => {
+        activo = false
+        document.removeEventListener('visibilitychange', onVisibilityChange)
+        detenerRealtime()
+      }
+    }, [])    // ============================================================
     // CARGA INICIAL + REALTIME (5 tablas)
     // ============================================================
     useEffect(() => {
