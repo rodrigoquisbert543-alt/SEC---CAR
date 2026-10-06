@@ -1,4 +1,3 @@
-﻿import { loadFromSupabase, fusionarDatos } from './utils/liveSync'
 import { startRealtimeSync } from './utils/realtime'
 import {
   ingresoLocalASupabase,
@@ -14,7 +13,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import type { Account, Permission } from './types'
 import { supabase } from './utils/supabase'
-import { enqueue, startSyncListener, getQueueLength, flushQueue } from './utils/syncQueue'
+import { migrateLocalData } from './utils/migrateLocal'
 import UserManagement from './components/UserManagement'
 import { fileToAvatar } from './utils/image'
 import './App.css'
@@ -321,7 +320,7 @@ const formatDate = (iso: string) => { const d = new Date(`${iso}T00:00:00`); ret
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const dateInRange = (date: string, start: string, end: string) => (!start || date >= start) && (!end || date <= end)
 const money = (value: number) => `Bs ${value.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`
-const nextCode = (prefix: string, count: number) => `${prefix}-${String(count).padStart(5, '0')}`
+const nextCode = (prefix: string, codes: string[]) => `${prefix}-${String(codes.reduce((max, c) => Math.max(max, parseInt(c.split('-')[1], 10) || 0), 0) + 1).padStart(5, '0')}`
 
 // ============================================================
 // TIPOS DE DATOS
@@ -549,31 +548,14 @@ function App() {
     useEffect(() => {
       if (!loggedUser) return
 
-      // 1) Carga inicial desde Supabase
+      // 1) Subir lo que haya quedado en este navegador y luego cargar todo desde Supabase
       const cargarInicial = async () => {
-        try {
-          // EVENTOS
-          const { data: eventosData } = await supabase.from('eventos').select('*').order('nombre')
-          if (eventosData) {
-            const nombres = eventosData.map((e: any) => e.nombre)
-            const precios: Record<string, number> = {}
-            eventosData.forEach((e: any) => { precios[e.nombre] = e.precio || 0 })
-            setEventOptions(nombres)
-            setEventPrices(precios)
-            console.log(`✅ ${nombres.length} eventos cargados`)
-          }
-
-          // CLIENTES
-          const { data: clientesData } = await supabase.from('clientes').select('*').order('nombre')
-          if (clientesData) {
-            const clientesLocales = clientesData.map((c: any) => clienteSupabaseALocal(c))
-            setPeople(clientesLocales)
-            console.log(`✅ ${clientesLocales.length} clientes cargados`)
-          }
-        } catch {
-          console.log('📡 Sin conexión. Usando datos locales.')
+        const migrado = await migrateLocalData()
+        if (!migrado) {
+          alert('Hay datos guardados en este dispositivo que a?n no se pudieron subir al servidor. Verifica tu conexi?n y vuelve a ingresar; no se perder?n.')
+          return
         }
-
+        await cargarTodo()
       }
       cargarInicial()
 
@@ -630,7 +612,22 @@ function App() {
       },'sec-car-realtime-data' )
      
 
-      return stop
+      const alVolver = () => { if (!document.hidden) cargarTodo() }
+     
+
+      document.addEventListener('visibilitychange', alVolver)
+     
+
+      return () => {
+     
+
+        document.removeEventListener('visibilitychange', alVolver)
+     
+
+        stop()
+     
+
+      }
     }, [loggedUser])
     // ============================================================
     // VERIFICAR PERMISOS EN TIEMPO REAL
@@ -711,6 +708,39 @@ function App() {
   )
   const isPrimaryAdmin = currentUser?.name === PRIMARY_ADMIN
   const canManageUsers = hasPermission(currentUser, 'usuarios_gestionar')
+
+  // Carga todo desde Supabase (fuente de verdad). Devuelve false si falla.
+  const cargarTodo = async (): Promise<boolean> => {
+    try {
+      const [ing, egr, eve, cli] = await Promise.all([
+        supabase.from('ingresos').select('*').order('fecha', { ascending: false }),
+        supabase.from('egresos').select('*').order('fecha', { ascending: false }),
+        supabase.from('eventos').select('*').order('nombre'),
+        supabase.from('clientes').select('*').order('nombre'),
+      ])
+      if (ing.error || egr.error || eve.error || cli.error) {
+        console.warn('?? Error al cargar datos:', ing.error || egr.error || eve.error || cli.error)
+        return false
+      }
+      setPayments((ing.data || []).map(ingresoSupabaseALocal) as Payment[])
+      setExpenses((egr.data || []).map(egresoSupabaseALocal) as Expense[])
+      const precios: Record<string, number> = {}
+      ;(eve.data || []).forEach((e: any) => { precios[e.nombre] = e.precio || 0 })
+      setEventOptions((eve.data || []).map((e: any) => e.nombre))
+      setEventPrices(precios)
+      setPeople((cli.data || []).map(clienteSupabaseALocal) as Person[])
+      return true
+    } catch {
+      console.log('?? Sin conexi?n. No se pudieron cargar los datos.')
+      return false
+    }
+  }
+
+  // Si una operaci?n no se guard? en el servidor, se avisa y se vuelve al estado real
+  const syncFail = () => {
+    alert('No se pudo guardar en el servidor. Verifica tu conexi?n e int?ntalo de nuevo.')
+    cargarTodo()
+  }
 
   const [payments, setPayments] = usePersistedState<Payment[]>('sec-car-payments', initialPayments)
   const [expenses, setExpenses] = usePersistedState<Expense[]>('sec-car-expenses', initialExpenses)
@@ -963,7 +993,7 @@ function App() {
     const phone = incomeForm.phone.trim()
     const next: Payment = {
       id: crypto.randomUUID(),
-      receipt: nextCode('REC', 1 + payments.length),
+      receipt: nextCode('REC', payments.map((p) => p.receipt)),
       person: personName,
       carnet,
       phone,
@@ -983,7 +1013,7 @@ function App() {
     if (!existing) setPeople([...people, { id: crypto.randomUUID(), name: personName, carnet, phone, notes: '' }])
     else setPeople(people.map((p) => p.id === existing.id ? { ...p, carnet: carnet && !p.carnet ? carnet : p.carnet, phone: phone && !p.phone ? phone : p.phone } : p))
 
-    // 2) Guardar en Supabase (o encolar si falla)
+    // 2) Guardar en Supabase 
     const payload = {
         id: next.id,
         recibo: next.receipt,
@@ -1003,14 +1033,16 @@ function App() {
       try {
         const { error } = await supabase.from('ingresos').insert(payload)
         if (error) {
-          console.warn('⚠️ Error al subir a Supabase. Se encola para reintentar:', error.message)
-          enqueue({ table: 'ingresos', operation: 'insert', payload })
+          console.warn('⚠️ Error al subir a Supabase. Se restaura desde el servidor', error.message)
+          syncFail()
+          return
         } else {
           console.log('✅ Ingreso guardado en Supabase:', next.receipt)
         }
       } catch {
         console.log('📡 Sin conexión. El ingreso se subirá al recuperar la red:', next.receipt)
-        enqueue({ table: 'ingresos', operation: 'insert', payload })
+        syncFail()
+        return
       }    
       setSelectedReceipt(next)
       setShowIncomeModal(false)
@@ -1029,7 +1061,7 @@ function App() {
     const category = expenseForm.category.trim() || 'Otros'
     const next: Expense = {
       id: crypto.randomUUID(),
-      voucher: nextCode('EGR', 1 + expenses.length),
+      voucher: nextCode('EGR', expenses.map((e) => e.voucher)),
       concept: expenseForm.concept.trim(),
       recipient: expenseForm.recipient.trim(),
       category,
@@ -1061,14 +1093,16 @@ function App() {
     try {
       const { error } = await supabase.from('egresos').insert(payload)
       if (error) {
-        console.warn('⚠️ Error al subir a Supabase. Se encola para reintentar:', error.message)
-        enqueue({ table: 'egresos', operation: 'insert', payload })
+        console.warn('⚠️ Error al subir a Supabase. Se restaura desde el servidor', error.message)
+        syncFail()
+        return
       } else {
         console.log('✅ Egreso guardado en Supabase:', next.voucher)
       }
     } catch {
       console.log('📡 Sin conexión. El egreso se subirá al recuperar la red:', next.voucher)
-      enqueue({ table: 'egresos', operation: 'insert', payload })
+      syncFail()
+      return
     }
     setSelectedVoucher(next)
     setShowExpenseModal(false)
@@ -1097,22 +1131,14 @@ function App() {
           .update({ estado: nuevoEstado, updated_at: ahora })
           .eq('id', id)
         if (error) {
-          console.warn('⚠️ Error al anular. Se encola:', error.message)
-          enqueue({ 
-            table: 'ingresos', 
-            operation: 'update', 
-            payload: { id, data: { estado: nuevoEstado, updated_at: ahora } } 
-          })
+          console.warn('⚠️ Error al anular. Se restaura desde el servidor', error.message)
+          syncFail()
         } else {
           console.log('✅ Estado actualizado en Supabase:', id)
         }
       } catch {
-        console.log('📡 Sin conexión. Se encola actualización.')
-        enqueue({ 
-          table: 'ingresos', 
-          operation: 'update', 
-          payload: { id, data: { estado: nuevoEstado, updated_at: ahora } } 
-        })
+        console.log('📡 Sin conexión. Se restaura desde el servidor')
+        syncFail()
       }
     })()
   }
@@ -1135,22 +1161,14 @@ function App() {
           .update({ estado: nuevoEstado, updated_at: ahora })
           .eq('id', id)
         if (error) {
-          console.warn('⚠️ Error al anular egreso. Se encola:', error.message)
-          enqueue({ 
-            table: 'egresos', 
-            operation: 'update', 
-            payload: { id, data: { estado: nuevoEstado, updated_at: ahora } } 
-          })
+          console.warn('⚠️ Error al anular egreso. Se restaura desde el servidor', error.message)
+          syncFail()
         } else {
           console.log('✅ Estado de egreso actualizado en Supabase:', id)
         }
       } catch {
-        console.log('📡 Sin conexión. Se encola actualización.')
-        enqueue({ 
-          table: 'egresos', 
-          operation: 'update', 
-          payload: { id, data: { estado: nuevoEstado, updated_at: ahora } } 
-        })
+        console.log('📡 Sin conexión. Se restaura desde el servidor')
+        syncFail()
       }
     })()
   }
@@ -1177,6 +1195,7 @@ function App() {
       }
     } catch {
       console.log('📡 Sin conexión. No se pudo eliminar de Supabase.')
+      syncFail()
     }
   }
   const addEventOption = async () => {
@@ -1202,14 +1221,14 @@ function App() {
     try {
       const { error } = await supabase.from('eventos').insert(payload)
       if (error) {
-        console.warn('⚠️ Error al subir evento. Se encola:', error.message)
-        enqueue({ table: 'eventos' as any, operation: 'insert', payload })
+        console.warn('⚠️ Error al subir evento. Se restaura desde el servidor', error.message)
+        syncFail()
       } else {
         console.log('✅ Evento subido a Supabase:', name)
       }
     } catch {
-      console.log('📡 Sin conexión. Se encola evento:', name)
-      enqueue({ table: 'eventos' as any, operation: 'insert', payload })
+      console.log('📡 Sin conexión. Se restaura desde el servidor', name)
+      syncFail()
     }
 
     setNewEventName('')
@@ -1228,14 +1247,14 @@ function App() {
         .update({ precio, updated_at: new Date().toISOString() })
         .eq('nombre', name)
       if (error) {
-        console.warn('⚠️ Error al actualizar precio. Se encola:', error.message)
-        enqueue({ table: 'eventos' as any, operation: 'update', payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } })
+        console.warn('⚠️ Error al actualizar precio. Se restaura desde el servidor', error.message)
+        syncFail()
       } else {
         console.log('✅ Precio actualizado:', name, precio)
       }
     } catch {
-      console.log('📡 Sin conexión. Se encola actualización.')
-      enqueue({ table: 'eventos' as any, operation: 'update', payload: { id: name, data: { precio, updated_at: new Date().toISOString() } } })
+      console.log('📡 Sin conexión. Se restaura desde el servidor')
+      syncFail()
     }
   }
   const addPerson = async () => {
@@ -1261,14 +1280,14 @@ function App() {
     try {
       const { error } = await supabase.from('clientes').insert(payload)
       if (error) {
-        console.warn('⚠️ Error al subir cliente. Se encola:', error.message)
-        enqueue({ table: 'clientes' as any, operation: 'insert', payload })
+        console.warn('⚠️ Error al subir cliente. Se restaura desde el servidor', error.message)
+        syncFail()
       } else {
         console.log('✅ Cliente subido a Supabase:', nueva.name)
       }
     } catch {
-      console.log('📡 Sin conexión. Se encola cliente:', nueva.name)
-      enqueue({ table: 'clientes' as any, operation: 'insert', payload })
+      console.log('📡 Sin conexión. Se restaura desde el servidor', nueva.name)
+      syncFail()
     }
   }
   const eliminarCuenta = async (id: string) => {
@@ -1279,14 +1298,14 @@ function App() {
     try {
       const { error } = await supabase.from('cuentas').delete().eq('id', id)
       if (error) {
-        console.warn('⚠️ Error al eliminar cuenta. Se encola:', error.message)
-        enqueue({ table: 'cuentas' as any, operation: 'delete', payload: { id } })
+        console.warn('⚠️ Error al eliminar cuenta. Se restaura desde el servidor', error.message)
+        syncFail()
       } else {
         console.log('✅ Cuenta eliminada de Supabase:', id)
       }
     } catch {
-      console.log('📡 Sin conexión. Se encola eliminación de cuenta.')
-      enqueue({ table: 'cuentas' as any, operation: 'delete', payload: { id } })
+      console.log('📡 Sin conexión. Se restaura desde el servidor')
+      syncFail()
     }
   }
 
@@ -1335,14 +1354,14 @@ function App() {
     try {
       const { error } = await supabase.from('clientes').update(payload).eq('id', target.id)
       if (error) {
-        console.warn('⚠️ Error al editar cliente. Se encola:', error.message)
-        enqueue({ table: 'clientes' as any, operation: 'update', payload: { id: target.id, data: payload } })
+        console.warn('⚠️ Error al editar cliente. Se restaura desde el servidor', error.message)
+        syncFail()
       } else {
         console.log('✅ Cliente actualizado en Supabase:', name)
       }
     } catch {
-      console.log('📡 Sin conexión. Se encola edición de cliente.')
-      enqueue({ table: 'clientes' as any, operation: 'update', payload: { id: target.id, data: payload } })
+      console.log('📡 Sin conexión. Se restaura desde el servidor')
+      syncFail()
     }
   }
   const askRemovePerson = (person: Person) => setPendingDelete(person)
@@ -1362,14 +1381,14 @@ function App() {
     try {
       const { error } = await supabase.from('clientes').delete().eq('id', id)
       if (error) {
-        console.warn('⚠️ Error al eliminar cliente. Se encola:', error.message)
-        enqueue({ table: 'clientes' as any, operation: 'delete', payload: { id } })
+        console.warn('⚠️ Error al eliminar cliente. Se restaura desde el servidor', error.message)
+        syncFail()
       } else {
         console.log('✅ Cliente eliminado de Supabase:', id)
       }
     } catch {
-      console.log('📡 Sin conexión. Se encola eliminación de cliente.')
-      enqueue({ table: 'clientes' as any, operation: 'delete', payload: { id } })
+      console.log('📡 Sin conexión. Se restaura desde el servidor')
+      syncFail()
     }
   }
   const registerPayer = (name: string, carnet: string, phone: string) => setPeople([...people, { id: crypto.randomUUID(), name, carnet, phone, notes: '' }])
@@ -1392,12 +1411,17 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
-  const clearHistory = () => {
+  const clearHistory = async () => {
     if (!hasPermission(currentUser, 'reportes_limpiar')) {
       alert('No tienes permiso para vaciar el historial.')
       return
     }
     if (confirmClear.trim().toUpperCase() !== 'BORRAR') return
+    const [r1, r2] = await Promise.all([
+      supabase.from('ingresos').delete().not('id', 'is', null),
+      supabase.from('egresos').delete().not('id', 'is', null),
+    ])
+    if (r1.error || r2.error) { syncFail(); return }
     setPayments([])
     setExpenses([])
     setConfirmClear('')
