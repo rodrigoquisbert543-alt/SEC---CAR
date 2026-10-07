@@ -189,31 +189,6 @@ function AccessScreen({
               </div>
             </div>
               <>
-                <div className="user-picker">
-                  <span>¿Quién eres?</span>
-                  <div>
-                    {accounts.filter((a) => a.active).map((account) => (
-                      <button
-                        key={account.id}
-                        className={selected === account.name ? 'user-choice selected' : 'user-choice'}
-                        onClick={() => chooseUser(account.name)}
-                      >
-                        <span className="auth-avatar">
-                          {account.avatar ? (
-                            <img src={account.avatar} alt={account.name} />
-                          ) : (
-                            <PersonIcon size={14} />
-                          )}
-                        </span>
-                        <span>
-                          <strong>{account.name}</strong>
-                          <small style={{ fontSize: '12px' }}>{account.needsPassword ? 'Ingreso' : 'Cuenta activa'}</small>
-                        </span>
-                        {selected === account.name && <b>✓</b>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
                 {mode === 'first' && (
                   <>
@@ -336,35 +311,8 @@ function AccessScreen({
                   Olvidé mi contraseña
                 </button>
               </>
-              
-              <label className="auth-label">
-              {mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}
-              <div className="password-field">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                  tabIndex={-1}
-                >
-                  {showPassword ? '🙈' : '👁️'}
-                </button>
-              </div>
-            </label>            <button
-              className="auth-submit"
-              onClick={() => (current.needsPassword && mode === 'login' ? setMode('first') : submit())}
-            >
-              {current.needsPassword && mode === 'login' ? 'Crear mi contraseña' : mode === 'first' ? 'Guardar contraseña' : 'Ingresar al sistema'} <span>→</span>
-            </button>
-            <button className="auth-link" onClick={() => { setMode('recovery'); setPassword(''); setMessage('') }}>Olvidé mi contraseña</button>
-          </>
-        )}
+            </>
+            )}
 
         {mode === 'recovery' && (
           <>
