@@ -1600,7 +1600,6 @@ function App() {
   }
 
   const loggedAccount = accounts.find((a) => a.name === loggedUser)
-  const [showPassword, setShowPassword] = useState(false)
 
   // ============================================================
   // RENDER: APP PRINCIPAL
