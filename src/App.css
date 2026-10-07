@@ -741,3 +741,62 @@ th:first-child {
     font-size: 14px !important;
   }
 }
+
+/* Contenedor que envuelve la tabla */
+.table-scroll-top {
+  overflow-x: auto;
+  overflow-y: hidden;
+  transform: rotateX(180deg);   /* sube la barra horizontal */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* El contenido interno se endereza */
+.table-scroll-top > * {
+  transform: rotateX(180deg);
+}
+
+/* Scrollbar un poco más visible en escritorio */
+.table-scroll-top::-webkit-scrollbar {
+  height: 10px;
+}
+.table-scroll-top::-webkit-scrollbar-track {
+  background: #f0ede8;
+  border-radius: 6px;
+}
+.table-scroll-top::-webkit-scrollbar-thumb {
+  background: #b9a98f;
+  border-radius: 6px;
+}
+.table-scroll-top::-webkit-scrollbar-thumb:hover {
+  background: #9c8b6e;
+}
+
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 42px; /* espacio para el botón */
+}
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 6px;
+  color: #6b6357;
+  border-radius: 6px;
+}
+
+.password-toggle:hover {
+  background: rgba(0, 0, 0, 0.06);
+}

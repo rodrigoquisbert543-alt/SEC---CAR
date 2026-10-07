@@ -1,4 +1,4 @@
-import { startRealtimeSync } from './utils/realtime'
+﻿import { startRealtimeSync } from './utils/realtime'
 import {
   ingresoLocalASupabase,
   ingresoSupabaseALocal,
@@ -54,10 +54,11 @@ function AccessScreen({
 }) {
   const [selected, setSelected] = useState<string>(accounts[0]?.name || '')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [confirm, setConfirm] = useState('')
   const [fullName, setFullName] = useState('')
   const [avatarDraft, setAvatarDraft] = useState<string>('')
-  const [mode, setMode] = useState<'login' | 'first' | 'recovery'>('login')
+  const [mode, setMode] = useState<'login' | 'first' | 'recovery'>('login')  
   const [message, setMessage] = useState('')
 
   const current = accounts.find((account) => account.name === selected) || accounts[0]
@@ -187,64 +188,175 @@ function AccessScreen({
                 ))}
               </div>
             </div>
-            {mode === 'first' && (
               <>
-                <label className="auth-label">
-                  Nombre y apellido
-                  <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Ej. Melitza Huanca" />
-                </label>
-
-                <label className="auth-label">
-                  Foto de perfil (opcional)
-                  <div className="avatar-upload-wrapper">
-                    <div className="avatar-preview-large">
-                      {avatarDraft ? (
-                        <img src={avatarDraft} alt="Vista previa" />
-                      ) : (
-                        <PersonIcon size={26} />
-                      )}
-                    </div>
-                    <label className="avatar-upload-btn">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={async (event) => {
-                          const file = event.target.files?.[0]
-                          if (!file) return
-                          try {
-                            const dataUrl = await fileToAvatar(file, 200)
-                            setAvatarDraft(dataUrl)
-                          } catch {
-                            setMessage('No se pudo cargar la imagen. Intenta con otra.')
-                          }
-                        }}
-                      />
-                      {avatarDraft ? 'Cambiar foto' : 'Subir foto'}
-                    </label>
-                    {avatarDraft && (
+                <div className="user-picker">
+                  <span>¿Quién eres?</span>
+                  <div>
+                    {accounts.filter((a) => a.active).map((account) => (
                       <button
-                        type="button"
-                        className="avatar-remove-btn"
-                        onClick={() => setAvatarDraft('')}
+                        key={account.id}
+                        className={selected === account.name ? 'user-choice selected' : 'user-choice'}
+                        onClick={() => chooseUser(account.name)}
                       >
-                        Quitar
+                        <span className="auth-avatar">
+                          {account.avatar ? (
+                            <img src={account.avatar} alt={account.name} />
+                          ) : (
+                            <PersonIcon size={14} />
+                          )}
+                        </span>
+                        <span>
+                          <strong>{account.name}</strong>
+                          <small style={{ fontSize: '12px' }}>{account.needsPassword ? 'Ingreso' : 'Cuenta activa'}</small>
+                        </span>
+                        {selected === account.name && <b>✓</b>}
                       </button>
-                    )}
+                    ))}
+                  </div>
+                </div>
+
+                {mode === 'first' && (
+                  <>
+                    <label className="auth-label">
+                      Nombre y apellido
+                      <input
+                        value={fullName}
+                        onChange={(event) => setFullName(event.target.value)}
+                        placeholder="Ej. Melitza Huanca"
+                      />
+                    </label>
+
+                    <label className="auth-label">
+                      Foto de perfil (opcional)
+                      <div className="avatar-upload-wrapper">
+                        <div className="avatar-preview-large">
+                          {avatarDraft ? (
+                            <img src={avatarDraft} alt="Vista previa" />
+                          ) : (
+                            <PersonIcon size={26} />
+                          )}
+                        </div>
+                        <label className="avatar-upload-btn">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={async (event) => {
+                              const file = event.target.files?.[0]
+                              if (!file) return
+                              try {
+                                const dataUrl = await fileToAvatar(file, 200)
+                                setAvatarDraft(dataUrl)
+                              } catch {
+                                setMessage('No se pudo cargar la imagen. Intenta con otra.')
+                              }
+                            }}
+                          />
+                          {avatarDraft ? 'Cambiar foto' : 'Subir foto'}
+                        </label>
+                        {avatarDraft && (
+                          <button
+                            type="button"
+                            className="avatar-remove-btn"
+                            onClick={() => setAvatarDraft('')}
+                          >
+                            Quitar
+                          </button>
+                        )}
+                      </div>
+                    </label>
+                  </>
+                )}
+
+                {/* 👇 INPUT DE CONTRASEÑA CON OJO */}
+                <label className="auth-label">
+                  {mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}
+                  <div className="password-field">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? '🙈' : '👁️'}
+                    </button>
                   </div>
                 </label>
+
+                {/* 👇 CONFIRMAR CONTRASEÑA (también con el mismo ojo) */}
+                {mode === 'first' && (
+                  <label className="auth-label">
+                    Confirmar contraseña
+                    <div className="password-field">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={confirm}
+                        onChange={(event) => setConfirm(event.target.value)}
+                        placeholder="Repite tu contraseña"
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? '🙈' : '👁️'}
+                      </button>
+                    </div>
+                  </label>
+                )}
+
+                <button
+                  className="auth-submit"
+                  onClick={() => (current.needsPassword && mode === 'login' ? setMode('first') : submit())}
+                >
+                  {current.needsPassword && mode === 'login'
+                    ? 'Crear mi contraseña'
+                    : mode === 'first'
+                    ? 'Guardar contraseña'
+                    : 'Ingresar al sistema'}{' '}
+                  <span>→</span>
+                </button>
+
+                <button
+                  className="auth-link"
+                  onClick={() => {
+                    setMode('recovery')
+                    setPassword('')
+                    setMessage('')
+                  }}
+                >
+                  Olvidé mi contraseña
+                </button>
               </>
-            )}
-            <label className="auth-label">
-              {mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" />
-            </label>
-            {mode === 'first' && (
+              
               <label className="auth-label">
-                Confirmar contraseña
-                <input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Repite tu contraseña" />
-              </label>
-            )}
-            <button
+              {mode === 'first' ? 'Nueva contraseña' : 'Contraseña'}
+              <div className="password-field">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  tabIndex={-1}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
+            </label>            <button
               className="auth-submit"
               onClick={() => (current.needsPassword && mode === 'login' ? setMode('first') : submit())}
             >
@@ -1540,6 +1652,7 @@ function App() {
   }
 
   const loggedAccount = accounts.find((a) => a.name === loggedUser)
+  const [showPassword, setShowPassword] = useState(false)
 
   // ============================================================
   // RENDER: APP PRINCIPAL
@@ -1702,7 +1815,7 @@ function App() {
             <section className="content-grid">
               <div className="panel transactions">
                 <div className="panel-head"><div><h3>Últimos movimientos</h3><p>Ingresos y egresos más recientes</p></div><button className="text-button" onClick={() => setActivePage('Ingresos')}>Ver todos <span>→</span></button></div>
-                <div className="table-wrap">
+                <div className="table-scroll-top">
                   <table>
                     <thead><tr><th>CÓDIGO</th><th>TIPO</th><th>DETALLE</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th></tr></thead>
                     <tbody>
@@ -1746,7 +1859,7 @@ function App() {
               )}
             </div>
             <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, carnet, teléfono, concepto o recibo..." /></div></div>
-            <div className="table-wrap">
+            <div className="table-scroll-top">
               <table>
                 <thead><tr><th>RECIBO</th><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead>
                 <tbody>
@@ -1790,7 +1903,7 @@ function App() {
               )}
             </div>
             <div className="filters"><div className="search"><span>⌕</span><input value={expenseQuery} onChange={(event) => setExpenseQuery(event.target.value)} placeholder="Buscar por destinatario, categoría o comprobante..." /></div></div>
-            <div className="table-wrap">
+            <div className="table-scroll-top">
               <table>
                 <thead><tr><th>COMPROBANTE</th><th>DESTINATARIO</th><th>CONCEPTO</th><th>CATEGORÍA</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead>
                 <tbody>
@@ -1864,7 +1977,7 @@ function App() {
             <div className="panel-head"><div><h3>Buscar cliente en eventos</h3><p>Encuentra a alguien por nombre, carnet o teléfono y revisa cuánto pagó y cuánto debe</p></div></div>
             <div className="filters"><div className="search"><span>⌕</span><input value={eventPeopleQuery} onChange={(event) => setEventPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
             {eventPeopleQuery.trim() && (
-              <div className="table-wrap">
+              <div className="table-scroll-top">
                 <table>
                   <thead><tr><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>EVENTO</th><th>PAGADO</th><th>PRECIO</th><th>DEBE</th><th>ESTADO</th></tr></thead>
                   <tbody>
@@ -1906,7 +2019,7 @@ function App() {
               </div>
             )}
             <div className="filters"><div className="search"><span>⌕</span><input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
-            <div className="table-wrap">
+            <div className="table-scroll-top">
               <table>
                 <thead><tr><th>NOMBRE</th><th>CARNET</th><th>TELÉFONO</th><th>TOTAL PAGADO</th><th>TOTAL ADEUDADO</th><th>DETALLE POR EVENTO</th><th>ACCIONES</th></tr></thead>
                 <tbody>
@@ -2000,7 +2113,7 @@ function App() {
                 </button>
               </div>
 
-              <div className="table-wrap">
+              <div className="table-scroll-top">
                 <table>
                   <thead>
                     <tr>

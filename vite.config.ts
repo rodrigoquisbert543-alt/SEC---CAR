@@ -2,7 +2,6 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
@@ -38,9 +37,7 @@ export default defineConfig({
             options: {
               backgroundSync: {
                 name: 'supabase-post-queue',
-                options: {
-                  maxRetentionTime: 24 * 60
-                }
+                options: { maxRetentionTime: 24 * 60 }
               }
             }
           },
@@ -51,9 +48,7 @@ export default defineConfig({
             options: {
               backgroundSync: {
                 name: 'supabase-put-queue',
-                options: {
-                  maxRetentionTime: 24 * 60
-                }
+                options: { maxRetentionTime: 24 * 60 }
               }
             }
           },
@@ -64,9 +59,7 @@ export default defineConfig({
             options: {
               backgroundSync: {
                 name: 'supabase-patch-queue',
-                options: {
-                  maxRetentionTime: 24 * 60
-                }
+                options: { maxRetentionTime: 24 * 60 }
               }
             }
           },
@@ -77,9 +70,7 @@ export default defineConfig({
             options: {
               backgroundSync: {
                 name: 'supabase-delete-queue',
-                options: {
-                  maxRetentionTime: 24 * 60
-                }
+                options: { maxRetentionTime: 24 * 60 }
               }
             }
           },
@@ -99,5 +90,21 @@ export default defineConfig({
         ]
       }
     })
-  ]
+  ],
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        // Vite 8 requiere la forma de función
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react')) return 'react-vendor'
+            if (id.includes('@supabase')) return 'supabase'
+            if (id.includes('jspdf')) return 'pdf'
+            if (id.includes('html2canvas')) return 'canvas'
+          }
+        }
+      }
+    }
+  }
 })
