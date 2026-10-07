@@ -1,4 +1,5 @@
-﻿import { startRealtimeSync } from './utils/realtime'
+﻿import TableWithTopScroll from './components/TableWithTopScroll'
+import { startRealtimeSync } from './utils/realtime'
 import {
   ingresoLocalASupabase,
   ingresoSupabaseALocal,
@@ -1761,8 +1762,7 @@ function App() {
             </section>
             <section className="content-grid">
               <div className="panel transactions">
-                <div className="panel-head"><div><h3>Últimos movimientos</h3><p>Ingresos y egresos más recientes</p></div><button className="text-button" onClick={() => setActivePage('Ingresos')}>Ver todos <span>→</span></button></div>
-                <div className="table-scroll-top">
+                <TableWithTopScroll>
                   <table>
                     <thead><tr><th>CÓDIGO</th><th>TIPO</th><th>DETALLE</th><th>FECHA</th><th>MONTO</th><th>ESTADO</th></tr></thead>
                     <tbody>
@@ -1779,7 +1779,7 @@ function App() {
                       {movements.length === 0 && <tr><td className="empty-cell" colSpan={6}>No hay movimientos en las fechas elegidas.</td></tr>}
                     </tbody>
                   </table>
-                </div>
+                </TableWithTopScroll>
               </div>
               <div className="panel events">
                 <div className="panel-head"><div><h3>Eventos y conceptos</h3><p>Sugerencias usadas al emitir recibos</p></div><button className="text-button" onClick={() => setActivePage('Eventos')}>Gestionar <span>→</span></button></div>
@@ -1806,7 +1806,7 @@ function App() {
               )}
             </div>
             <div className="filters"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, carnet, teléfono, concepto o recibo..." /></div></div>
-            <div className="table-scroll-top">
+            <TableWithTopScroll>
               <table>
                 <thead><tr><th>RECIBO</th><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>CONCEPTO</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead>
                 <tbody>
@@ -1835,7 +1835,7 @@ function App() {
                   {filteredPayments.length === 0 && <tr><td className="empty-cell" colSpan={10}>No hay recibos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
                 </tbody>
               </table>
-            </div>
+            </TableWithTopScroll>
           </section>
         )}
 
@@ -1850,7 +1850,7 @@ function App() {
               )}
             </div>
             <div className="filters"><div className="search"><span>⌕</span><input value={expenseQuery} onChange={(event) => setExpenseQuery(event.target.value)} placeholder="Buscar por destinatario, categoría o comprobante..." /></div></div>
-            <div className="table-scroll-top">
+            <TableWithTopScroll>
               <table>
                 <thead><tr><th>COMPROBANTE</th><th>DESTINATARIO</th><th>CONCEPTO</th><th>CATEGORÍA</th><th>FECHA</th><th>MONTO</th><th>REGISTRADO POR</th><th>ESTADO</th><th></th></tr></thead>
                 <tbody>
@@ -1878,7 +1878,7 @@ function App() {
                   {filteredExpenses.length === 0 && <tr><td className="empty-cell" colSpan={9}>No hay egresos que coincidan con la búsqueda y las fechas elegidas.</td></tr>}
                 </tbody>
               </table>
-            </div>
+            </TableWithTopScroll>
           </section>
         )}
 
@@ -1924,7 +1924,7 @@ function App() {
             <div className="panel-head"><div><h3>Buscar cliente en eventos</h3><p>Encuentra a alguien por nombre, carnet o teléfono y revisa cuánto pagó y cuánto debe</p></div></div>
             <div className="filters"><div className="search"><span>⌕</span><input value={eventPeopleQuery} onChange={(event) => setEventPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
             {eventPeopleQuery.trim() && (
-              <div className="table-scroll-top">
+              <TableWithTopScroll>
                 <table>
                   <thead><tr><th>CLIENTE</th><th>CARNET</th><th>TELÉFONO</th><th>EVENTO</th><th>PAGADO</th><th>PRECIO</th><th>DEBE</th><th>ESTADO</th></tr></thead>
                   <tbody>
@@ -1948,7 +1948,7 @@ function App() {
                       }))}
                   </tbody>
                 </table>
-              </div>
+              </TableWithTopScroll>
             )}
           </section>
         )}
@@ -1966,7 +1966,7 @@ function App() {
               </div>
             )}
             <div className="filters"><div className="search"><span>⌕</span><input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Buscar por nombre, carnet o teléfono..." /></div></div>
-            <div className="table-scroll-top">
+            <TableWithTopScroll>
               <table>
                 <thead><tr><th>NOMBRE</th><th>CARNET</th><th>TELÉFONO</th><th>TOTAL PAGADO</th><th>TOTAL ADEUDADO</th><th>DETALLE POR EVENTO</th><th>ACCIONES</th></tr></thead>
                 <tbody>
@@ -1991,7 +1991,7 @@ function App() {
                   {filteredPeople.length === 0 && <tr><td className="empty-cell" colSpan={7}>{people.length === 0 ? 'Aún no hay clientes en el directorio. Agrega el primero con el formulario de arriba o desde las sugerencias de abajo.' : 'Ningún cliente coincide con la búsqueda.'}</td></tr>}
                 </tbody>
               </table>
-            </div>
+            </TableWithTopScroll>
             <div className="table-note">Eliminar un cliente solo lo quita del directorio: sus recibos siguen guardados en Ingresos y, si vuelve a pagar, puedes registrarlo otra vez desde las sugerencias de abajo.</div>
             {undirectoried.length > 0 && (
               <div className="chip-list">
@@ -2060,7 +2060,7 @@ function App() {
                 </button>
               </div>
 
-              <div className="table-scroll-top">
+              <TableWithTopScroll>
                 <table>
                   <thead>
                     <tr>
@@ -2085,7 +2085,7 @@ function App() {
                     )}
                   </tbody>
                 </table>
-              </div>
+              </TableWithTopScroll>
               {pdfData.length > 50 && (
                 <div className="table-note">Mostrando 50 de {pdfData.length}. El PDF incluye todos.</div>
               )}

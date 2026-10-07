@@ -46,7 +46,7 @@
   background: white;
   border: 1px solid #e4e9e7;
   border-radius: 6px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .panel-head {
@@ -742,35 +742,6 @@ th:first-child {
   }
 }
 
-/* Contenedor que envuelve la tabla */
-.table-scroll-top {
-  overflow-x: auto;
-  overflow-y: hidden;
-  transform: rotateX(180deg);   /* sube la barra horizontal */
-  -webkit-overflow-scrolling: touch;
-}
-
-/* El contenido interno se endereza */
-.table-scroll-top > * {
-  transform: rotateX(180deg);
-}
-
-/* Scrollbar un poco más visible en escritorio */
-.table-scroll-top::-webkit-scrollbar {
-  height: 10px;
-}
-.table-scroll-top::-webkit-scrollbar-track {
-  background: #f0ede8;
-  border-radius: 6px;
-}
-.table-scroll-top::-webkit-scrollbar-thumb {
-  background: #b9a98f;
-  border-radius: 6px;
-}
-.table-scroll-top::-webkit-scrollbar-thumb:hover {
-  background: #9c8b6e;
-}
-
 .password-field {
   position: relative;
   display: flex;
@@ -799,4 +770,90 @@ th:first-child {
 
 .password-toggle:hover {
   background: rgba(0, 0, 0, 0.06);
+}
+
+/* ============================================================ */
+/* Tablas con barra horizontal ARRIBA y fija                     */
+/* Componente: <TableWithTopScroll>                              */
+/* ============================================================ */
+
+.table-top-scroll-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+/* Barra superior — sticky, siempre visible al bajar */
+.table-top-scroll-bar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 14px;
+  background: transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-top-scroll-bar > div {
+  height: 1px;
+}
+
+/* Scrollbar de la barra superior */
+.table-top-scroll-bar::-webkit-scrollbar {
+  height: 12px;
+}
+.table-top-scroll-bar::-webkit-scrollbar-track {
+  background: #f0ede8;
+  border-radius: 6px;
+}
+.table-top-scroll-bar::-webkit-scrollbar-thumb {
+  background: #b9a98f;
+  border-radius: 6px;
+  border: 2px solid #f0ede8;
+}
+.table-top-scroll-bar::-webkit-scrollbar-thumb:hover {
+  background: #9c8b6e;
+}
+.table-top-scroll-bar {
+  scrollbar-width: thin;
+  scrollbar-color: #b9a98f #f0ede8;
+}
+
+/* Contenedor de la tabla — barra propia oculta */
+.table-top-scroll-content {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.table-top-scroll-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* Encabezados de columna fijos al bajar */
+.table-top-scroll-content thead th {
+  position: sticky;
+  top: 14px;   /* debajo de la barra superior */
+  background: #12472b;
+  color: #fff;
+  z-index: 2;
+}
+
+/* Modo oscuro */
+.app-shell.dark .table-top-scroll-bar::-webkit-scrollbar-track {
+  background: #1f2a26;
+}
+.app-shell.dark .table-top-scroll-bar::-webkit-scrollbar-thumb {
+  background: #3d5550;
+  border-color: #1f2a26;
+}
+.app-shell.dark .table-top-scroll-bar::-webkit-scrollbar-thumb:hover {
+  background: #4d6a63;
+}
+.app-shell.dark .table-top-scroll-bar {
+  scrollbar-color: #3d5550 #1f2a26;
+}
+.app-shell.dark .table-top-scroll-content thead th {
+  background: #16211d;
+  color: #9fb0aa;
 }
