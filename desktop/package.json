@@ -1,0 +1,31 @@
+{
+  "name": "sec-car-escritorio",
+  "version": "1.0.0",
+  "description": "SEC-CAR - Sistema de control financiero",
+  "author": "SEC-CAR",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "bo.seccar.app",
+    "productName": "SEC-CAR",
+    "artifactName": "SEC-CAR-Setup.${ext}",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "offline.html"],
+    "win": { "icon": "build/icon.png", "target": "nsis" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SEC-CAR"
+    }
+  }
+}

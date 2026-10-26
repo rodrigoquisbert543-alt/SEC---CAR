@@ -1,0 +1,9 @@
+{
+  "appId": "bo.seccar.app",
+  "appName": "SEC-CAR",
+  "webDir": "www",
+  "server": {
+    "url": "https://sec-car-rho.vercel.app/",
+    "cleartext": false
+  }
+}

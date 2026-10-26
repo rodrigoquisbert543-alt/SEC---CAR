@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['logo-seccar.png', 'logo-seccar-icon.png'],
+      includeAssets: ['logo-seccar.png', 'logo-seccar-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'SEC-CAR — Sistema de control financiero',
         short_name: 'SEC-CAR',
@@ -19,12 +19,9 @@ export default defineConfig({
         theme_color: '#12472b',
         lang: 'es',
         icons: [
-          {
-            src: '/logo-seccar-icon.png',
-            sizes: '457x512',
-            type: 'image/png',
-            purpose: 'any'
-          }
+          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
       workbox: {

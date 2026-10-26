@@ -16,6 +16,9 @@ import type { Account, Permission } from './types'
 import { supabase } from './utils/supabase'
 import { migrateLocalData } from './utils/migrateLocal'
 import UserManagement from './components/UserManagement'
+import Congregacion from './components/Congregacion'
+import InstallApp from './components/InstallApp'
+import { useMiembros, calcularRecordatorios, notificarProximos, textoDias } from './utils/congregacion'
 import { fileToAvatar } from './utils/image'
 import './App.css'
 import jsPDF from 'jspdf'
@@ -408,7 +411,7 @@ const initialExpenses: Expense[] = []
 const initialEventOptions: string[] = []
 const initialCategoryOptions: string[] = []
 const initialPeople: Person[] = []
-const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Clientes'] as const
+const navItems = ['Resumen', 'Ingresos', 'Egresos', 'Eventos', 'Clientes', 'Congregación'] as const
 const eventManager = 'Ovet Zúñiga'
 
 // ============================================================
@@ -770,6 +773,19 @@ function App() {
   const isPrimaryAdmin = currentUser?.name === PRIMARY_ADMIN
   const canManageUsers = hasPermission(currentUser, 'usuarios_gestionar')
 
+  const congregacion = useMiembros()
+  const recordatorios = useMemo(() => calcularRecordatorios(congregacion.miembros, 30), [congregacion.miembros])
+  const recordatoriosCercanos = recordatorios.filter((r) => r.dias <= 1)
+  const [showRecordatorios, setShowRecordatorios] = useState(false)
+
+  useEffect(() => {
+    if (!currentUser) return
+    const avisar = () => { notificarProximos(recordatorios) }
+    avisar()
+    const timer = setInterval(avisar, 60 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [currentUser, recordatorios])
+
   // Carga todo desde Supabase (fuente de verdad). Devuelve false si falla.
   const cargarTodo = async (): Promise<boolean> => {
     try {
@@ -851,7 +867,7 @@ function App() {
     if (!currentUser) return
 
     const puedeVer =
-      activePage === 'Resumen' ? true :
+      activePage === 'Resumen' || activePage === 'Congregación' ? true :
       activePage === 'Ingresos' ? hasPermission(currentUser, 'ingresos_ver') :
       activePage === 'Egresos' ? hasPermission(currentUser, 'egresos_ver') :
       activePage === 'Eventos' ? hasPermission(currentUser, 'eventos_ver') :
@@ -1616,7 +1632,7 @@ function App() {
         <nav>
           {navItems.map((item) => {
             const puedeVer =
-              item === 'Resumen' ? true :
+              item === 'Resumen' || item === 'Congregación' ? true :
               item === 'Ingresos' ? hasPermission(currentUser, 'ingresos_ver') :
               item === 'Egresos' ? hasPermission(currentUser, 'egresos_ver') :
               item === 'Eventos' ? hasPermission(currentUser, 'eventos_ver') :
@@ -1631,7 +1647,7 @@ function App() {
                 className={activePage === item ? 'nav-item active' : 'nav-item'}
                 onClick={() => setActivePage(item)}
               >
-                <span className="nav-icon">{item === 'Resumen' ? '▦' : item === 'Ingresos' ? '↗' : item === 'Egresos' ? '↘' : item === 'Eventos' ? '◷' : '♙'}</span>
+                <span className="nav-icon">{item === 'Resumen' ? '▦' : item === 'Ingresos' ? '↗' : item === 'Egresos' ? '↘' : item === 'Eventos' ? '◷' : item === 'Congregación' ? '✝' : '♙'}</span>
                 {item}
               </button>
             )
@@ -1686,6 +1702,7 @@ function App() {
         )}
 
         <div className="sidebar-bottom">
+          <InstallApp />
           <div className="sync">
             <span className="sync-dot"></span>
             <div><strong>Sincronizado</strong><small>Todos los cambios guardados</small></div>
@@ -1718,7 +1735,21 @@ function App() {
           <div><span className="eyebrow">Seminario de Educación Cristiana Caranavi</span><h1>{activePage === 'Resumen' ? 'Resumen general' : activePage}</h1></div>
           <div className="top-actions">
             <button className="icon-button" aria-label="Cambiar tema" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☀' : '☾'}</button>
-            <button className="icon-button" aria-label="Notificaciones">♢<span className="notification-dot"></span></button>
+            <div style={{ position: 'relative' }}>
+              <button className="icon-button" aria-label="Notificaciones" onClick={() => setShowRecordatorios((v) => !v)}>♢{recordatoriosCercanos.length > 0 && <span className="notification-dot"></span>}</button>
+              {showRecordatorios && (
+                <div className="panel" style={{ position: 'absolute', right: 0, top: '110%', width: 300, maxWidth: '85vw', zIndex: 50, padding: 12 }}>
+                  <strong>Próximas fechas</strong>
+                  {recordatorios.length === 0 && <p className="table-note">No hay fechas en los próximos 30 días.</p>}
+                  {recordatorios.slice(0, 8).map((r) => (
+                    <p key={r.key} style={{ margin: '8px 0', fontSize: 12 }}>
+                      <b>{r.nombre}</b> · {r.titulo}<br />{textoDias(r.dias)}
+                    </p>
+                  ))}
+                  <button className="status-toggle" onClick={() => { setActivePage('Congregación'); setShowRecordatorios(false) }}>Ver congregación</button>
+                </div>
+              )}
+            </div>
             <div className="date-pill">{formatDate(todayISO())} <span>⌄</span></div>
           </div>
         </header>
@@ -2004,6 +2035,16 @@ function App() {
               </div>
             )}
           </section>
+        )}
+
+        {activePage === 'Congregación' && (
+          <Congregacion
+            miembros={congregacion.miembros}
+            cargando={congregacion.cargando}
+            error={congregacion.error}
+            recargar={congregacion.recargar}
+            usuario={loggedAccount?.fullName?.trim() || loggedUser || ''}
+          />
         )}
 
         {activePage === 'Reportes' && (
